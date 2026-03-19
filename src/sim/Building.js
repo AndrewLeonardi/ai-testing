@@ -3,6 +3,7 @@
 
 import { Entity } from './Entity.js';
 import { Grid } from './Grid.js';
+import { BALANCE } from '../game/Balance.js';
 
 export const BUILDING_TYPES = {
   HQ: 'HQ',
@@ -12,12 +13,16 @@ export const BUILDING_TYPES = {
 
 export class Building extends Entity {
   constructor(x, y, type) {
-    const hpMap = { HQ: 200, CANNON: 80, WALL: 120 };
+    const hpMap = {
+      HQ: BALANCE.BUILDINGS.HQ.hp,
+      CANNON: BALANCE.BUILDINGS.CANNON.hp,
+      WALL: BALANCE.BUILDINGS.WALL.hp,
+    };
     super(x, y, hpMap[type] || 100, 1); // team 1 = defender
     this.buildingType = type;
-    this.range = type === BUILDING_TYPES.CANNON ? 8 : 0;
-    this.damage = type === BUILDING_TYPES.CANNON ? 15 : 0;
-    this.fireRate = 3; // ticks between shots
+    this.range = type === BUILDING_TYPES.CANNON ? BALANCE.BUILDINGS.CANNON.range : 0;
+    this.damage = type === BUILDING_TYPES.CANNON ? BALANCE.BUILDINGS.CANNON.damage : 0;
+    this.fireRate = BALANCE.BUILDINGS.CANNON.fireRate; // ticks between shots
     this.fireCooldown = 0;
     this.currentTarget = null;
     this.firedThisStep = false;

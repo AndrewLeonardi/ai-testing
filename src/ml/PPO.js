@@ -9,16 +9,17 @@ import {
 } from './Tensor.js';
 import { OBS_SIZE } from './Observations.js';
 import { NUM_ACTIONS } from '../sim/Soldier.js';
+import { BALANCE } from '../game/Balance.js';
 
-// Hyperparameters
-const GAMMA = 0.99;
-const LAMBDA = 0.95;
-const CLIP_EPSILON = 0.2;
-const ENTROPY_COEFF = 0.05;
-const VALUE_COEFF = 0.5;
-const EPOCHS = 4;
-const MINIBATCH_SIZE = 64;
-const MAX_GRAD_NORM = 0.5;
+// Hyperparameters — from Balance.js single source of truth
+const GAMMA = BALANCE.PPO.gamma;
+const LAMBDA = BALANCE.PPO.lambda;
+const CLIP_EPSILON = BALANCE.PPO.clipEpsilon;
+const ENTROPY_COEFF = BALANCE.PPO.entropyCoeff;
+const VALUE_COEFF = BALANCE.PPO.valueCoeff;
+const EPOCHS = BALANCE.PPO.epochs;
+const MINIBATCH_SIZE = BALANCE.PPO.minibatchSize;
+const MAX_GRAD_NORM = BALANCE.PPO.maxGradNorm;
 
 export class PPO {
   constructor() {
@@ -27,8 +28,8 @@ export class PPO {
     // Value network: obs -> state value
     this.value = new Network([OBS_SIZE, 64, 32, 1], 'linear');
 
-    this.policyOpt = new Adam(this.policy, 3e-4);
-    this.valueOpt = new Adam(this.value, 3e-4);
+    this.policyOpt = new Adam(this.policy, BALANCE.PPO.learningRate);
+    this.valueOpt = new Adam(this.value, BALANCE.PPO.learningRate);
 
     // Trajectory buffer
     this.observations = [];

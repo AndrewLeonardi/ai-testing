@@ -1,6 +1,8 @@
 # Weapons & Offense Registry
 
 > Two sides of the same coin. Every weapon here exists because a defense item in `defense.md` forces the AI to need it. If a weapon doesn't counter a specific defense, it's stat inflation — cut it.
+>
+> **Gold costs and combat stats are defined in `src/game/Balance.js` — that file is the single source of truth.** Values in this doc are for design discussion; the code is authoritative. See `/balance.html` for the interactive economy calculator.
 
 ---
 

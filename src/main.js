@@ -10,6 +10,7 @@ import { Interpolator } from './viz/Interpolator.js';
 import { Dashboard } from './ui/Dashboard.js';
 import { MetricsChart } from './ui/MetricsChart.js';
 import { StatusBar } from './ui/StatusBar.js';
+import { BALANCE } from './game/Balance.js';
 
 // --- State ---
 let sim, grid, soldiers, buildings, hq;
@@ -24,7 +25,7 @@ let episodeReward = 0;
 let speed = 1;
 let paused = false;
 let winHistory = []; // last 100 episode results
-const HORIZON = 128; // PPO update every N steps
+const HORIZON = BALANCE.PPO.horizon; // PPO update every N steps
 let stepsSinceUpdate = 0;
 let lastEntropy = 0;
 let currentLevel = 1;

@@ -148,6 +148,23 @@ Each one introduces a new tactical dimension:
 - Replay attacks on your base to see how you got beaten
 - Identify weak spots, redesign base
 
+## Economy & Balance Architecture
+
+**Single source of truth:** `src/game/Balance.js` — every combat stat, reward constant, PPO hyperparameter, building cost, training cost, loot formula, passive income rate, and IAP tier lives here. Deep-frozen, no imports, pure data.
+
+**Balance calculator:** `/balance.html` — web-based tool that imports Balance.js and visualizes the entire economy. Player level slider shows how all numbers scale. Charts show training cost vs raid reward, passive income vs costs, IAP tiers. Player archetypes (raider/balanced/defender) show gold flow per hour.
+
+**How to add new constants:** Add to the relevant section in Balance.js. Both the game code and the calculator automatically pick it up. Never hardcode balance numbers in game files — always import from Balance.js.
+
+**Key economy design (from Clash/Boom Beach research):**
+- Buildings: buy once, upgrade incrementally, auto-repair FREE (no replenishment cost)
+- Training: costs gold per 1000 runs, scales 1.15x per player level
+- Loot: attacker steals 15% of defender's stored gold (capped, scales with level)
+- Passive income: 5-15% of costs, retention tool not progression
+- IAP: 6 tiers ($0.99-$99.99), ~43% volume discount at top tier
+
+---
+
 ## Architecture Principle: The Engine Must Scale
 
 This is NOT a game with 10 levels and an ending. It's an ENGINE that supports years of play.

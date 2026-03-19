@@ -5,6 +5,7 @@ import { resolveShot } from './Combat.js';
 import { ACTIONS } from './Soldier.js';
 import { BUILDING_TYPES } from './Building.js';
 import { CELL_EMPTY, CELL_SHIELD, CELL_MINE } from './Grid.js';
+import { BALANCE } from '../game/Balance.js';
 
 export class SimLoop {
   constructor(grid, soldiers, buildings, hq) {
@@ -14,7 +15,7 @@ export class SimLoop {
     this.hq = hq;
     this.step = 0;
     const hasCannons = buildings.some(b => b.buildingType === BUILDING_TYPES.CANNON);
-    this.maxSteps = hasCannons ? 500 : 200; // shorter episodes for simpler scenarios
+    this.maxSteps = hasCannons ? BALANCE.SCENARIOS.maxStepsCombat : BALANCE.SCENARIOS.maxStepsSimple;
     this.done = false;
     this.won = false;
     this.shieldActive = hasCannons;
@@ -46,7 +47,7 @@ export class SimLoop {
     for (const s of this.soldiers) {
       if (!s.alive) continue;
       if (this.grid.getCell(s.x, s.y) === CELL_MINE) {
-        const mineDamage = 999; // instant kill — forces real avoidance, no tanking
+        const mineDamage = BALANCE.BUILDINGS.MINE.damage;
         s.takeDamage(mineDamage);
         if (!s.alive) s.killedByMine = true;
         this.grid.setCell(s.x, s.y, CELL_EMPTY);

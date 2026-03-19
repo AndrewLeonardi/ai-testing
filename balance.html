@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Toy Soldiers — Balance Calculator</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #1a1a2e;
+      color: #e0e0e0;
+      font-family: 'Courier New', monospace;
+      min-height: 100vh;
+      padding: 0 0 60px 0;
+    }
+    .header {
+      background: #0f3d0f;
+      border-bottom: 2px solid #2a5a2a;
+      padding: 16px 24px;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .header h1 {
+      color: #4caf50;
+      font-size: 18px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .header .level-control {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .header .level-control label {
+      color: #8bc34a;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .header .level-control input[type="range"] {
+      flex: 1;
+      min-width: 200px;
+      accent-color: #4caf50;
+    }
+    .header .level-control .level-value {
+      color: #fff;
+      font-size: 20px;
+      font-weight: bold;
+      min-width: 40px;
+    }
+    .header .quick-stats {
+      display: flex;
+      gap: 24px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+    .header .quick-stats .qs {
+      font-size: 11px;
+    }
+    .header .quick-stats .qs-label {
+      color: #8bc34a;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .header .quick-stats .qs-value {
+      color: #fff;
+      font-weight: bold;
+      margin-left: 6px;
+    }
+    .content {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+    }
+    .section {
+      background: #0f2f0f;
+      border: 1px solid #2a5a2a;
+      border-radius: 6px;
+      padding: 20px;
+    }
+    .section h2 {
+      color: #4caf50;
+      font-size: 14px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+      border-bottom: 1px solid #2a5a2a;
+      padding-bottom: 8px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    th {
+      color: #8bc34a;
+      text-align: left;
+      padding: 6px 8px;
+      border-bottom: 1px solid #2a5a2a;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-size: 10px;
+    }
+    td {
+      padding: 6px 8px;
+      border-bottom: 1px solid #1a3a1a;
+    }
+    tr.planned td {
+      color: #777;
+      font-style: italic;
+    }
+    .gold { color: #ffd700; }
+    .green { color: #4caf50; }
+    .red { color: #f44336; }
+    .blue { color: #40c4ff; }
+    .orange { color: #ff9800; }
+    .archetypes {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .archetype-card {
+      background: #1a2a1a;
+      border: 1px solid #2a5a2a;
+      border-radius: 4px;
+      padding: 16px;
+    }
+    .archetype-card h3 {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+    .archetype-card .row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      padding: 3px 0;
+    }
+    .archetype-card .row .lbl { color: #8bc34a; }
+    .archetype-card .row .val { font-weight: bold; }
+    .chart-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .chart-container {
+      background: #0a2a0a;
+      border: 1px solid #2a5a2a;
+      border-radius: 4px;
+      padding: 12px;
+    }
+    .chart-container .chart-title {
+      color: #8bc34a;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      text-align: center;
+      margin-bottom: 8px;
+    }
+    canvas {
+      width: 100%;
+      height: 200px;
+      display: block;
+    }
+    .reward-bars {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .reward-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+    }
+    .reward-bar .rb-label {
+      min-width: 200px;
+      color: #8bc34a;
+      text-align: right;
+    }
+    .reward-bar .rb-bar {
+      height: 14px;
+      border-radius: 2px;
+      min-width: 2px;
+    }
+    .reward-bar .rb-value {
+      min-width: 60px;
+    }
+    .back-link {
+      color: #4caf50;
+      text-decoration: none;
+      font-size: 12px;
+    }
+    .back-link:hover { text-decoration: underline; }
+    @media (max-width: 768px) {
+      .archetypes { grid-template-columns: 1fr; }
+      .chart-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <h1>Balance Calculator</h1>
+      <a href="/" class="back-link">Back to Game</a>
+    </div>
+    <div class="level-control">
+      <label>Player Level:</label>
+      <input type="range" id="level-slider" min="1" max="15" value="1" step="1">
+      <span class="level-value" id="level-display">1</span>
+    </div>
+    <div class="quick-stats" id="quick-stats"></div>
+  </div>
+
+  <div class="content">
+    <!-- Economy Dashboard -->
+    <div class="section" id="economy-section">
+      <h2>Economy at Current Level</h2>
+      <div id="economy-grid"></div>
+    </div>
+
+    <!-- Player Archetypes -->
+    <div class="section">
+      <h2>Player Archetypes — Gold Flow / Hour</h2>
+      <div class="archetypes" id="archetypes"></div>
+    </div>
+
+    <!-- Building Stats -->
+    <div class="section">
+      <h2>Building Stats (Defense)</h2>
+      <table id="buildings-table">
+        <thead>
+          <tr>
+            <th>Building</th>
+            <th>HP</th>
+            <th>Damage</th>
+            <th>Range</th>
+            <th>Fire Rate</th>
+            <th>Gold Cost</th>
+            <th>Tier</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- Weapon Stats -->
+    <div class="section">
+      <h2>Weapon Stats (Offense)</h2>
+      <table id="weapons-table">
+        <thead>
+          <tr>
+            <th>Weapon</th>
+            <th>Damage</th>
+            <th>Range</th>
+            <th>Ammo</th>
+            <th>Cooldown</th>
+            <th>Gold Cost</th>
+            <th>Tier</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- Scaling Charts -->
+    <div class="section">
+      <h2>Scaling Curves</h2>
+      <div class="chart-row">
+        <div class="chart-container">
+          <div class="chart-title">Training Cost vs Raid Reward by Level</div>
+          <canvas id="chart-cost-reward" width="500" height="200"></canvas>
+        </div>
+        <div class="chart-container">
+          <div class="chart-title">Passive Income vs Training Cost by Level</div>
+          <canvas id="chart-passive-training" width="500" height="200"></canvas>
+        </div>
+      </div>
+      <div class="chart-row" style="margin-top:16px;">
+        <div class="chart-container">
+          <div class="chart-title">IAP — Gold per Dollar</div>
+          <canvas id="chart-iap" width="500" height="200"></canvas>
+        </div>
+        <div class="chart-container">
+          <div class="chart-title">Build Budget by Level</div>
+          <canvas id="chart-budget" width="500" height="200"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reward Constants -->
+    <div class="section">
+      <h2>Reward Shaping Constants</h2>
+      <div class="reward-bars" id="reward-bars"></div>
+    </div>
+
+    <!-- IAP Table -->
+    <div class="section">
+      <h2>In-App Purchase Tiers</h2>
+      <table id="iap-table">
+        <thead>
+          <tr>
+            <th>Pack</th>
+            <th>Gold</th>
+            <th>Price (USD)</th>
+            <th>Gold / Dollar</th>
+            <th>Bonus vs Smallest</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script type="module">
+    import {
+      BALANCE,
+      trainingCostAtLevel, passiveIncomeAtLevel, raidRewardForGold,
+      defenseRewardAtLevel, raidRewardCapAtLevel, goldPerDollar,
+      breakEvenRaids, hoursToEarn, buildBudgetAtLevel, maxBuildingsAtLevel,
+    } from '/src/game/Balance.js';
+
+    const slider = document.getElementById('level-slider');
+    const levelDisplay = document.getElementById('level-display');
+
+    slider.max = BALANCE.PLAYER_LEVELS.MAX;
+
+    function fmt(n) {
+      if (n >= 10000) return (n / 1000).toFixed(1) + 'k';
+      if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
+      return n.toLocaleString();
+    }
+
+    function render() {
+      const level = parseInt(slider.value);
+      levelDisplay.textContent = level;
+
+      const prog = BALANCE.PLAYER_LEVELS.progression[level];
+      const trainCost = trainingCostAtLevel(level);
+      const passive = passiveIncomeAtLevel(level);
+      const raidCap = raidRewardCapAtLevel(level);
+      const defReward = defenseRewardAtLevel(level);
+      const budget = buildBudgetAtLevel(level);
+      const maxBuild = maxBuildingsAtLevel(level);
+
+      // Quick stats
+      document.getElementById('quick-stats').innerHTML = [
+        ['Passive', `${passive} g/hr`],
+        ['Train Cost', `${trainCost} g/1k runs`],
+        ['Raid Cap', `${fmt(raidCap)} g`],
+        ['Defense Win', `${defReward} g`],
+        ['Budget', `${fmt(budget)} g`],
+        ['Max Buildings', maxBuild],
+      ].map(([l, v]) =>
+        `<div class="qs"><span class="qs-label">${l}:</span><span class="qs-value">${v}</span></div>`
+      ).join('');
+
+      // Economy grid
+      const avgDefGold = budget * 3; // assume average defender has ~3x their build budget stored
+      const avgRaid = raidRewardForGold(avgDefGold, level);
+      const breakEven = breakEvenRaids(level, avgDefGold);
+      const hrsForCannon = hoursToEarn(BALANCE.BUILDINGS.CANNON.goldCost, level);
+      const hrsForSniper = hoursToEarn(BALANCE.BUILDINGS.SNIPER_TOWER.goldCost, level);
+
+      document.getElementById('economy-grid').innerHTML = `
+        <table>
+          <tr><td class="gold">Training cost (1k runs)</td><td>${trainCost} gold</td></tr>
+          <tr><td class="gold">Passive income</td><td>${passive} gold/hr</td></tr>
+          <tr><td class="gold">Avg raid reward (vs ${fmt(avgDefGold)}g defender)</td><td>${avgRaid} gold</td></tr>
+          <tr><td class="gold">Raid reward cap</td><td>${fmt(raidCap)} gold</td></tr>
+          <tr><td class="gold">Defense win reward</td><td>${defReward} gold</td></tr>
+          <tr><td class="green">Break-even raids to recoup training</td><td>${breakEven} raids</td></tr>
+          <tr><td class="blue">Passive hrs to afford a Cannon (${BALANCE.BUILDINGS.CANNON.goldCost}g)</td><td>${hrsForCannon.toFixed(1)} hrs</td></tr>
+          <tr><td class="blue">Passive hrs to afford a Sniper (${BALANCE.BUILDINGS.SNIPER_TOWER.goldCost}g)</td><td>${hrsForSniper.toFixed(1)} hrs</td></tr>
+          <tr><td>Build budget</td><td>${fmt(budget)} gold</td></tr>
+          <tr><td>Max buildings</td><td>${maxBuild}</td></tr>
+          <tr><td>Unlocks at this level</td><td>${prog.unlocks.length > 0 ? prog.unlocks.join(', ') : 'None (scaling only)'}</td></tr>
+        </table>
+      `;
+
+      // Archetypes
+      const raidsPerHour = 4; // assume ~4 raids per hour of active play
+      const raiderIncome = passive + (avgRaid * raidsPerHour);
+      const raiderSpend = trainCost / 4; // spread training cost over ~4 hours
+      const defenderIncome = passive + (defReward * 2); // assume ~2 defense wins/hr
+      const balancedIncome = passive + (avgRaid * 2) + defReward;
+
+      document.getElementById('archetypes').innerHTML = [
+        { name: 'Pure Raider', color: '#f44336',
+          income: raiderIncome, spend: raiderSpend,
+          desc: `Raids ${raidsPerHour}x/hr, trains aggressively` },
+        { name: 'Balanced Player', color: '#ff9800',
+          income: balancedIncome, spend: raiderSpend * 0.6,
+          desc: 'Raids 2x/hr, defends, trains moderately' },
+        { name: 'Pure Defender', color: '#40c4ff',
+          income: defenderIncome, spend: 0,
+          desc: 'Relies on passive + defense wins' },
+      ].map(a => `
+        <div class="archetype-card">
+          <h3 style="color:${a.color}">${a.name}</h3>
+          <div style="font-size:10px;color:#888;text-align:center;margin-bottom:8px;">${a.desc}</div>
+          <div class="row"><span class="lbl">Income/hr</span><span class="val gold">${Math.round(a.income)} g</span></div>
+          <div class="row"><span class="lbl">Spend/hr</span><span class="val red">${Math.round(a.spend)} g</span></div>
+          <div class="row"><span class="lbl">Net/hr</span><span class="val" style="color:${a.income - a.spend > 0 ? '#4caf50' : '#f44336'}">${Math.round(a.income - a.spend)} g</span></div>
+          <div class="row"><span class="lbl">Hrs for Cannon</span><span class="val">${(BALANCE.BUILDINGS.CANNON.goldCost / (a.income - a.spend || 1)).toFixed(1)}</span></div>
+        </div>
+      `).join('');
+
+      // Charts
+      drawScalingCharts();
+    }
+
+    // --- Buildings Table (static) ---
+    function renderBuildingsTable() {
+      const tbody = document.querySelector('#buildings-table tbody');
+      tbody.innerHTML = '';
+      for (const [key, b] of Object.entries(BALANCE.BUILDINGS)) {
+        const planned = b.status === 'planned';
+        tbody.innerHTML += `
+          <tr class="${planned ? 'planned' : ''}">
+            <td><strong>${key}</strong><br><span style="font-size:10px;color:#888">${b.description}</span></td>
+            <td>${b.hp || '-'}</td>
+            <td>${b.damage || '-'}</td>
+            <td>${b.range || '-'}</td>
+            <td>${b.fireRate || '-'}</td>
+            <td class="gold">${b.goldCost}</td>
+            <td>${b.tier}</td>
+            <td>${b.status}</td>
+          </tr>
+        `;
+      }
+    }
+
+    // --- Weapons Table (static) ---
+    function renderWeaponsTable() {
+      const tbody = document.querySelector('#weapons-table tbody');
+      tbody.innerHTML = '';
+      for (const [key, w] of Object.entries(BALANCE.WEAPONS)) {
+        const planned = w.status === 'planned';
+        tbody.innerHTML += `
+          <tr class="${planned ? 'planned' : ''}">
+            <td><strong>${key}</strong><br><span style="font-size:10px;color:#888">${w.description}</span></td>
+            <td>${w.damage || '-'}</td>
+            <td>${w.range || '-'}</td>
+            <td>${w.ammo || '-'}</td>
+            <td>${w.cooldown || '-'}</td>
+            <td class="gold">${w.goldCost}</td>
+            <td>${w.tier}</td>
+            <td>${w.status}</td>
+          </tr>
+        `;
+      }
+    }
+
+    // --- IAP Table (static) ---
+    function renderIAPTable() {
+      const tbody = document.querySelector('#iap-table tbody');
+      tbody.innerHTML = '';
+      const baseGPD = goldPerDollar(0);
+      BALANCE.IAP.packs.forEach((pack, i) => {
+        const gpd = goldPerDollar(i);
+        const bonus = ((gpd / baseGPD - 1) * 100).toFixed(0);
+        tbody.innerHTML += `
+          <tr>
+            <td><strong>${pack.name}</strong></td>
+            <td class="gold">${pack.gold.toLocaleString()}</td>
+            <td>$${pack.priceUSD.toFixed(2)}</td>
+            <td>${gpd}</td>
+            <td>${i === 0 ? 'baseline' : `+${bonus}%`}</td>
+          </tr>
+        `;
+      });
+    }
+
+    // --- Reward Bars (static) ---
+    function renderRewardBars() {
+      const container = document.getElementById('reward-bars');
+      container.innerHTML = '';
+      const entries = Object.entries(BALANCE.REWARDS);
+      const maxAbs = Math.max(...entries.map(([, v]) => Math.abs(v)));
+
+      for (const [key, val] of entries) {
+        const pct = (Math.abs(val) / maxAbs) * 100;
+        const color = val >= 0 ? '#4caf50' : '#f44336';
+        const label = key.replace(/([A-Z])/g, ' $1').trim();
+        container.innerHTML += `
+          <div class="reward-bar">
+            <span class="rb-label">${label}</span>
+            <div class="rb-bar" style="width:${Math.max(pct, 1)}%;background:${color};"></div>
+            <span class="rb-value" style="color:${color}">${val >= 0 ? '+' : ''}${val}</span>
+          </div>
+        `;
+      }
+    }
+
+    // --- Charts ---
+    function drawLineChart(canvas, datasets, xLabels) {
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+      const pad = { top: 10, right: 10, bottom: 24, left: 50 };
+      const plotW = w - pad.left - pad.right;
+      const plotH = h - pad.top - pad.bottom;
+
+      ctx.fillStyle = '#0a2a0a';
+      ctx.fillRect(0, 0, w, h);
+
+      // Find global min/max
+      let globalMax = -Infinity, globalMin = Infinity;
+      for (const ds of datasets) {
+        for (const v of ds.data) {
+          if (v > globalMax) globalMax = v;
+          if (v < globalMin) globalMin = v;
+        }
+      }
+      if (globalMax === globalMin) { globalMax += 1; globalMin -= 1; }
+      const range = globalMax - globalMin;
+
+      // Grid lines
+      ctx.strokeStyle = '#1a3a1a';
+      ctx.lineWidth = 0.5;
+      for (let i = 0; i <= 4; i++) {
+        const y = pad.top + (i / 4) * plotH;
+        ctx.beginPath();
+        ctx.moveTo(pad.left, y);
+        ctx.lineTo(w - pad.right, y);
+        ctx.stroke();
+
+        const val = globalMax - (i / 4) * range;
+        ctx.fillStyle = '#666';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText(fmt(Math.round(val)), pad.left - 4, y + 3);
+      }
+
+      // X labels
+      if (xLabels) {
+        ctx.fillStyle = '#666';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'center';
+        const step = Math.max(1, Math.floor(xLabels.length / 8));
+        for (let i = 0; i < xLabels.length; i += step) {
+          const x = pad.left + (i / (xLabels.length - 1)) * plotW;
+          ctx.fillText(xLabels[i], x, h - 4);
+        }
+      }
+
+      // Data lines
+      for (const ds of datasets) {
+        ctx.strokeStyle = ds.color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i = 0; i < ds.data.length; i++) {
+          const x = pad.left + (i / (ds.data.length - 1)) * plotW;
+          const y = pad.top + plotH * (1 - (ds.data[i] - globalMin) / range);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // Label at end
+        const lastX = pad.left + plotW;
+        const lastY = pad.top + plotH * (1 - (ds.data[ds.data.length - 1] - globalMin) / range);
+        ctx.fillStyle = ds.color;
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'left';
+      }
+
+      // Legend
+      ctx.font = '9px monospace';
+      let legendX = pad.left + 4;
+      for (const ds of datasets) {
+        ctx.fillStyle = ds.color;
+        ctx.fillRect(legendX, pad.top + 2, 12, 8);
+        ctx.fillStyle = '#ccc';
+        ctx.textAlign = 'left';
+        ctx.fillText(ds.label, legendX + 16, pad.top + 10);
+        legendX += ctx.measureText(ds.label).width + 30;
+      }
+    }
+
+    function drawBarChart(canvas, labels, values, colors) {
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+      const pad = { top: 10, right: 10, bottom: 40, left: 50 };
+      const plotW = w - pad.left - pad.right;
+      const plotH = h - pad.top - pad.bottom;
+
+      ctx.fillStyle = '#0a2a0a';
+      ctx.fillRect(0, 0, w, h);
+
+      const maxVal = Math.max(...values);
+      const barW = plotW / labels.length * 0.7;
+      const gap = plotW / labels.length * 0.3;
+
+      for (let i = 0; i < labels.length; i++) {
+        const barH = (values[i] / maxVal) * plotH;
+        const x = pad.left + i * (barW + gap) + gap / 2;
+        const y = pad.top + plotH - barH;
+
+        ctx.fillStyle = colors[i] || '#4caf50';
+        ctx.fillRect(x, y, barW, barH);
+
+        ctx.fillStyle = '#ccc';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(fmt(values[i]), x + barW / 2, y - 4);
+
+        ctx.fillStyle = '#888';
+        ctx.save();
+        ctx.translate(x + barW / 2, h - 4);
+        ctx.fillText(labels[i], 0, 0);
+        ctx.restore();
+      }
+    }
+
+    function drawScalingCharts() {
+      const maxLevel = BALANCE.PLAYER_LEVELS.MAX;
+      const levels = Array.from({ length: maxLevel }, (_, i) => i + 1);
+      const xLabels = levels.map(l => 'L' + l);
+
+      // Chart 1: Training cost vs Raid reward
+      const trainCosts = levels.map(l => trainingCostAtLevel(l));
+      const raidCaps = levels.map(l => raidRewardCapAtLevel(l));
+      drawLineChart(
+        document.getElementById('chart-cost-reward'),
+        [
+          { label: 'Training Cost/1k', data: trainCosts, color: '#f44336' },
+          { label: 'Raid Cap', data: raidCaps, color: '#ffd700' },
+        ],
+        xLabels,
+      );
+
+      // Chart 2: Passive income vs Training cost
+      const passives = levels.map(l => passiveIncomeAtLevel(l));
+      drawLineChart(
+        document.getElementById('chart-passive-training'),
+        [
+          { label: 'Passive g/hr', data: passives, color: '#40c4ff' },
+          { label: 'Training Cost/1k', data: trainCosts, color: '#f44336' },
+        ],
+        xLabels,
+      );
+
+      // Chart 3: IAP gold per dollar
+      const iapLabels = BALANCE.IAP.packs.map(p => p.name);
+      const iapGPD = BALANCE.IAP.packs.map((_, i) => goldPerDollar(i));
+      const iapColors = ['#666', '#888', '#aaa', '#ccc', '#ffd700', '#ffab40'];
+      drawBarChart(
+        document.getElementById('chart-iap'),
+        iapLabels, iapGPD, iapColors,
+      );
+
+      // Chart 4: Build budget by level
+      const budgets = levels.map(l => buildBudgetAtLevel(l));
+      drawLineChart(
+        document.getElementById('chart-budget'),
+        [
+          { label: 'Build Budget', data: budgets, color: '#ff9800' },
+        ],
+        xLabels,
+      );
+    }
+
+    // --- Init ---
+    slider.addEventListener('input', render);
+    renderBuildingsTable();
+    renderWeaponsTable();
+    renderIAPTable();
+    renderRewardBars();
+    render();
+  </script>
+</body>
+</html>

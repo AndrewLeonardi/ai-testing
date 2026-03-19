@@ -195,6 +195,10 @@ Gold coins are the universal currency. Every player action that matters costs go
 4. **IAP buys time, not power.** A paying player gets gold faster. A free player gets there eventually. No exclusive items behind paywalls.
 5. **Gold sinks prevent inflation.** Training, upgrades, and building replacement (after raids damage your base) keep gold flowing OUT. The mine keeps it flowing IN. The raid economy circulates it between players.
 
+### Single Source of Truth
+
+All gold costs, combat stats, reward constants, and scaling formulas live in **`src/game/Balance.js`**. Both the game code and the balance calculator (`/balance.html`) import from this file. Never hardcode balance numbers elsewhere — if a number affects gold or gameplay balance, it belongs in Balance.js.
+
 ### Economy ↔ Balance Connection
 
 The gold economy is the BALANCING LEVER for the entire game. If offense is too strong → raise training costs. If defense is too strong → lower building costs so more players can build up. If progression is too fast → reduce raid payouts. Every balance knob in the game ultimately maps to a gold flow rate.

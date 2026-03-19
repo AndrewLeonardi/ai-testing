@@ -1,44 +1,48 @@
 // Layered reward shaping for soldier training.
 // Two-phase: destroy cannons (shield up) → destroy HQ (shield down).
+// All constants pulled from Balance.js — single source of truth.
 
 import { Grid, CELL_MINE } from '../sim/Grid.js';
 import { hasTargetInLine } from '../sim/Combat.js';
 import { ACTIONS } from '../sim/Soldier.js';
 import { BUILDING_TYPES } from '../sim/Building.js';
+import { BALANCE } from '../game/Balance.js';
+
+const R = BALANCE.REWARDS;
 
 export function computeReward(soldier, prevState, grid, buildings, soldiers, hq, episodeDone, won, shieldActive) {
   let reward = 0;
 
   // --- Survival ---
-  reward -= 0.01;
+  reward += R.survivalTick;
 
   // --- Idle penalty ---
   const idleActions = [ACTIONS.DUCK, ACTIONS.STAND, ACTIONS.STAY];
   if (idleActions.includes(soldier.lastAction)) {
-    reward -= 0.02;
+    reward += R.idlePenalty;
   }
 
   // --- Combat rewards ---
   if (soldier.damageDealtThisStep > 0) {
-    reward += soldier.damageDealtThisStep * 0.1;
+    reward += soldier.damageDealtThisStep * R.damageDealtMultiplier;
   }
 
   // Extra bonus for killing blow on HQ
   if (hq && !hq.alive && soldier.damageDealtThisStep > 0) {
-    reward += 1.0;
+    reward += R.hqKillBonus;
   }
 
   // Damage taken
   if (soldier.damageTakenThisStep > 0) {
-    reward -= soldier.damageTakenThisStep * 0.03;
+    reward += soldier.damageTakenThisStep * R.damageTakenMultiplier;
   }
 
   // --- Shooting accuracy ---
   if (soldier.lastAction === ACTIONS.SHOOT && soldier.shotMissedThisStep) {
-    reward -= 0.05;
+    reward += R.shotMissedPenalty;
   }
   if (soldier.shotHitThisStep) {
-    reward += 0.5;
+    reward += R.shotHitBonus;
   }
 
   // --- Phase-dependent distance reward ---
@@ -59,20 +63,19 @@ export function computeReward(soldier, prevState, grid, buildings, soldiers, hq,
       if (nearestCannon) {
         const prevDist = Grid.euclidean(prevState.x, prevState.y, nearestCannon.x, nearestCannon.y);
         const currDist = Grid.euclidean(soldier.x, soldier.y, nearestCannon.x, nearestCannon.y);
-        reward += (prevDist - currDist) * 0.5;
+        reward += (prevDist - currDist) * R.distanceApproachMultiplier;
       }
     } else {
       // Phase 2: Shield is down → move toward HQ
       if (hq && hq.alive) {
         const prevDist = Grid.euclidean(prevState.x, prevState.y, hq.x, hq.y);
         const currDist = Grid.euclidean(soldier.x, soldier.y, hq.x, hq.y);
-        reward += (prevDist - currDist) * 0.5;
+        reward += (prevDist - currDist) * R.distanceApproachMultiplier;
       }
     }
   }
 
   // --- Mine proximity penalty ---
-  // Small penalty for moving TOWARD a mine (uses mine compass data)
   if (prevState) {
     const nearestMine = grid.findNearestMine(soldier.x, soldier.y);
     if (nearestMine && nearestMine.dist < 5) {
@@ -80,8 +83,7 @@ export function computeReward(soldier, prevState, grid, buildings, soldiers, hq,
       if (prevMine) {
         const approachDelta = prevMine.dist - nearestMine.dist;
         if (approachDelta > 0) {
-          // Moving toward a mine within danger range — penalize
-          reward -= approachDelta * 0.3;
+          reward += approachDelta * R.mineApproachPenalty;
         }
       }
     }
@@ -90,22 +92,22 @@ export function computeReward(soldier, prevState, grid, buildings, soldiers, hq,
   // --- Cannon destruction bonus ---
   for (const b of buildings) {
     if (b.buildingType === BUILDING_TYPES.CANNON && b.destroyedThisStep) {
-      reward += 5.0; // big bonus for destroying a cannon
+      reward += R.cannonDestroyedBonus;
     }
   }
 
   // --- Terminal rewards ---
   if (episodeDone) {
     if (won) {
-      reward += 20.0;
+      reward += R.winReward;
     } else if (!soldier.alive) {
       if (soldier.killedByMine) {
-        reward -= 5.0; // stronger signal: mines are avoidable, learn to dodge them
+        reward += R.mineDeathPenalty;
       } else {
-        reward -= 3.0;
+        reward += R.killedPenalty;
       }
     } else {
-      reward -= 2.0;
+      reward += R.timeoutPenalty;
     }
   }
 

@@ -3,6 +3,7 @@
 
 import { Entity } from './Entity.js';
 import { DX, DY, DIR_N } from './Grid.js';
+import { BALANCE } from '../game/Balance.js';
 
 export const ACTIONS = {
   MOVE_FWD: 0,
@@ -24,15 +25,15 @@ export const NUM_ACTIONS = 8;
 
 export class Soldier extends Entity {
   constructor(x, y, team, facing = DIR_N) {
-    super(x, y, 200, team); // 200 HP gives more time to learn
+    super(x, y, BALANCE.SOLDIER.hp, team);
     this.facing = facing;
     this.ducking = false;
     this.shootCooldown = 0;
-    this.maxShootCooldown = 2; // ticks between shots
-    this.ammo = 30;
-    this.maxAmmo = 30;
-    this.damage = 25;
-    this.range = 8;
+    this.maxShootCooldown = BALANCE.SOLDIER.shootCooldown;
+    this.ammo = BALANCE.SOLDIER.ammo;
+    this.maxAmmo = BALANCE.SOLDIER.ammo;
+    this.damage = BALANCE.SOLDIER.damage;
+    this.range = BALANCE.SOLDIER.range;
     this.lastAction = -1;
     this.damageDealtThisStep = 0;
     this.damageTakenThisStep = 0;
@@ -103,7 +104,7 @@ export class Soldier extends Entity {
   }
 
   takeDamage(amount) {
-    const actual = this.ducking ? amount * 0.5 : amount;
+    const actual = this.ducking ? amount * BALANCE.SOLDIER.duckDamageReduction : amount;
     this.damageTakenThisStep += actual;
     return super.takeDamage(actual);
   }

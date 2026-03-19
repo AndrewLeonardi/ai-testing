@@ -1,6 +1,8 @@
 # Defense & Buildings Registry
 
 > Two sides of the same coin. Every building here exists to force the AI to learn a new behavior. If the AI doesn't need to change its strategy to beat it, the building is cosmetic — cut it. Check `weapons.md` for the corresponding offense counters.
+>
+> **Gold costs and combat stats are defined in `src/game/Balance.js` — that file is the single source of truth.** Values in this doc are for design discussion; the code is authoritative. See `/balance.html` for the interactive economy calculator.
 
 ---
 
