@@ -78,7 +78,7 @@ function init() {
   enterRosterMode();
 
   // Start game loop
-  requestAnimationFrame(gameLoop);
+  scheduleLoop();
 }
 
 // =============================================================================
@@ -220,7 +220,7 @@ function exitDrillMode() {
   enterRosterMode();
 }
 
-function resetDrillEpisode() {
+function resetDrillEpisode(skipRenderer = false) {
   const scenario = drillLevelDef.factory();
   grid = scenario.grid;
   soldiers = scenario.soldiers;
@@ -245,7 +245,8 @@ function resetDrillEpisode() {
   episodeReward = 0;
   numTeamSoldiers = soldiers.filter(s => s.team === 0).length;
 
-  if (renderer) {
+  // Skip renderer rebuild during fast training — it's rebuilt once per frame after the tick loop
+  if (!skipRenderer && renderer) {
     renderer.clear();
     renderer.initFromState(sim.getState());
     interpolator.pushState(sim.getState());
@@ -394,8 +395,17 @@ function onTestLayout(layout) {
 // =============================================================================
 let lastTime = 0;
 
+// Use setTimeout instead of requestAnimationFrame so the game loop runs
+// even when the tab is hidden/backgrounded (rAF pauses in hidden tabs).
+// Generation counter prevents stale HMR loops from continuing.
+const loopGen = (window._loopGen = (window._loopGen || 0) + 1);
+function scheduleLoop() {
+  if (window._loopGen !== loopGen) return; // stale module — stop
+  setTimeout(() => gameLoop(performance.now()), 16);
+}
+
 function gameLoop(timestamp) {
-  requestAnimationFrame(gameLoop);
+  scheduleLoop();
 
   const dt = timestamp - lastTime;
   lastTime = timestamp;
@@ -441,9 +451,11 @@ function gameLoop(timestamp) {
   // ==========================================================================
   // DRILL MODE — training a specific soldier's individual brain
   // ==========================================================================
-  if (mode === 'drill' && trainingSoldierRecord) {
+  if (mode === 'drill' && trainingSoldierRecord) { try {
     const brain = trainingSoldierRecord.brain;
-    const ticksThisFrame = speed;
+    // When tab is hidden, browsers throttle setTimeout to ~1s intervals.
+    // Compensate by running more ticks per callback (simulate ~60fps worth).
+    const ticksThisFrame = document.hidden ? speed * 60 : speed;
 
     for (let t = 0; t < ticksThisFrame; t++) {
       if (sim.done) {
@@ -459,7 +471,8 @@ function gameLoop(timestamp) {
           brain.update(lastObs);
         }
 
-        resetDrillEpisode();
+        // Skip renderer rebuild inside loop — done once after all ticks
+        resetDrillEpisode(true);
         continue;
       }
 
@@ -519,12 +532,17 @@ function gameLoop(timestamp) {
       }
     }
 
-    // Update visualization
+    // Update visualization — skip when tab is hidden (WebGL can stall)
     const state = sim.getState();
-    interpolator.pushState(state);
-    const alpha = interpolator.getAlpha(dt);
-    renderer.update(state, alpha);
-    renderer.render();
+    if (!document.hidden) {
+      if (speed > 1) {
+        renderer.clear();
+        renderer.initFromState(state);
+      }
+      interpolator.pushState(state);
+      renderer.update(state, 1);
+      renderer.render();
+    }
 
     // Update dashboard stats
     const winRate = winHistory.length > 0
@@ -546,13 +564,13 @@ function gameLoop(timestamp) {
       valueLoss: brain.lastMetrics.valueLoss,
     });
 
-    statusBar.update(state);
+    if (!document.hidden) statusBar.update(state);
 
     // Auto-save brain every 100 episodes
     if (episode > 0 && episode % 100 === 0) {
       roster.save();
     }
-  }
+  } catch(e) { console.error('Drill loop error:', e); } }
 }
 
 // --- Start ---
