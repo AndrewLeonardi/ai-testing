@@ -89,6 +89,7 @@ export const BALANCE = deepFreeze({
   },
 
   // --- Soldier (Offense) ---
+  // Base stats shared by all classes. Class modifiers adjust these.
   SOLDIER: {
     hp: 200,
     damage: 25,
@@ -96,6 +97,88 @@ export const BALANCE = deepFreeze({
     ammo: 30,
     shootCooldown: 2,
     duckDamageReduction: 0.5,
+  },
+
+  // --- Soldier Classes ---
+  // Each class has stat modifiers applied to SOLDIER base stats.
+  // recommendedDrills: UI hint only, not a constraint — any class can train on any drill.
+  // status: 'planned' until implementation. All classes use the same neural network shape.
+  SOLDIER_CLASSES: {
+    ASSAULT: {
+      hpMultiplier: 1.2, damageMultiplier: 1.0, visionMultiplier: 1.0,
+      recruitCost: 200, tier: 'starter', status: 'planned',
+      description: 'Frontline fighter. Extra HP for sustained combat.',
+      recommendedDrills: ['CANNON_ALLEY', 'SHIELD_SIEGE'],
+    },
+    SCOUT: {
+      hpMultiplier: 1.0, damageMultiplier: 1.0, visionMultiplier: 1.4,
+      recruitCost: 200, tier: 'starter', status: 'planned',
+      description: 'Pathfinder. Extended vision range for mine detection.',
+      recommendedDrills: ['MINE_FIELD', 'THE_MAZE'],
+    },
+    SUPPORT: {
+      hpMultiplier: 0.8, damageMultiplier: 0.9, visionMultiplier: 1.0,
+      recruitCost: 300, tier: 'advanced', status: 'planned',
+      description: 'Team enabler. Lower stats, but future heal/buff abilities.',
+      recommendedDrills: ['SQUAD_BASICS', 'FLANKING_DRILL'],
+    },
+  },
+
+  // --- Roster ---
+  // Players maintain a roster of individually-trained soldiers.
+  // Each soldier = its own PPO brain (~15K parameters).
+  ROSTER: {
+    baseSlotsAtLevel1: 3,     // roster slots at level 1
+    slotsPerLevel: 0.5,       // additional slots per level (rounded down)
+    maxSlots: 10,             // hard cap on roster size
+    // Derived: level 1 = 3, level 5 = 5, level 10 = 7, level 15 = 10
+  },
+
+  // --- Training Drills ---
+  // Dedicated training scenarios. Training does NOT happen against the player's own base.
+  // Solo drills train one soldier at a time. Group drills train 2+ soldiers together.
+  // Each drill uses randomized layouts each episode to force generalization.
+  DRILLS: {
+    MINE_FIELD: {
+      type: 'solo', minLevel: 1, status: 'implemented',
+      description: 'Navigate through randomized mine fields.',
+      teaches: 'Hazard avoidance, cautious pathing',
+    },
+    CANNON_ALLEY: {
+      type: 'solo', minLevel: 2, status: 'planned',
+      description: 'Survive and destroy cannons under fire.',
+      teaches: 'Threat assessment, shooting accuracy, cover usage',
+    },
+    SHIELD_SIEGE: {
+      type: 'solo', minLevel: 2, status: 'implemented',
+      description: 'Destroy cannons to drop shield, then assault HQ.',
+      teaches: 'Multi-phase planning, target prioritization',
+    },
+    THE_MAZE: {
+      type: 'solo', minLevel: 3, status: 'implemented',
+      description: 'Navigate wall mazes to reach the objective.',
+      teaches: 'Pathfinding around obstacles',
+    },
+    KILL_ZONE: {
+      type: 'solo', minLevel: 4, status: 'planned',
+      description: 'Survive overlapping sniper and cannon fields of fire.',
+      teaches: 'Timing advances, using cover, burst movement',
+    },
+    SQUAD_BASICS: {
+      type: 'group', minLevel: 5, minSoldiers: 2, status: 'planned',
+      description: 'Two soldiers learn to cooperate without clustering.',
+      teaches: 'Spacing, not blocking allies, basic coordination',
+    },
+    FLANKING_DRILL: {
+      type: 'group', minLevel: 6, minSoldiers: 2, status: 'planned',
+      description: 'Multiple soldiers attack from different angles.',
+      teaches: 'Flanking, splitting attention of defenses',
+    },
+    FULL_ASSAULT: {
+      type: 'group', minLevel: 7, minSoldiers: 3, status: 'planned',
+      description: 'Full squad vs complex defense layout.',
+      teaches: 'Role specialization, coordinated multi-phase assault',
+    },
   },
 
   // --- Weapons (Offense) ---
@@ -193,10 +276,13 @@ export const BALANCE = deepFreeze({
   },
 
   // --- Training Economy ---
+  // Training costs are PER SOLDIER PER DRILL BATCH.
+  // A group drill with 3 soldiers costs 3x a solo drill (each brain trains independently).
   TRAINING: {
-    costPer1000Runs: 100,       // base gold cost per 1000 training episodes
+    costPer1000Runs: 100,       // base gold cost per 1000 training episodes PER SOLDIER
     costScalePerLevel: 1.15,    // compound multiplier per player level
     runsPerBatch: 1000,         // episodes per training batch
+    groupDrillMultiplier: 1.0,  // no surcharge — cost is just per-soldier (3 soldiers = 3x)
   },
 
   // --- Loot / Raid Rewards ---
@@ -331,4 +417,30 @@ export function buildBudgetAtLevel(level) {
 export function maxBuildingsAtLevel(level) {
   const prog = BALANCE.PLAYER_LEVELS.progression[level];
   return prog ? prog.maxBuildings : 0;
+}
+
+export function rosterSlotsAtLevel(level) {
+  const base = BALANCE.ROSTER.baseSlotsAtLevel1;
+  const extra = Math.floor((level - 1) * BALANCE.ROSTER.slotsPerLevel);
+  return Math.min(base + extra, BALANCE.ROSTER.maxSlots);
+}
+
+export function squadSizeAtLevel(level) {
+  // Squad size for raids: 1 at level 1, scales up
+  if (level <= 1) return 1;
+  if (level <= 4) return 2;
+  if (level <= 7) return 3;
+  if (level <= 11) return 4;
+  return 5;
+}
+
+export function recruitCost(soldierClass) {
+  const cls = BALANCE.SOLDIER_CLASSES[soldierClass];
+  return cls ? cls.recruitCost : 0;
+}
+
+export function drillTrainingCost(level, numSoldiers) {
+  // Cost = base per 1000 runs * level scaling * number of soldiers
+  const baseCost = trainingCostAtLevel(level);
+  return baseCost * numSoldiers;
 }

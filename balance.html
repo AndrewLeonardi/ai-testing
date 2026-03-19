@@ -271,6 +271,48 @@
       </table>
     </div>
 
+    <!-- Soldier Classes -->
+    <div class="section">
+      <h2>Soldier Classes (Offense)</h2>
+      <table id="classes-table">
+        <thead>
+          <tr>
+            <th>Class</th>
+            <th>HP Mult</th>
+            <th>Dmg Mult</th>
+            <th>Vision Mult</th>
+            <th>Recruit Cost</th>
+            <th>Tier</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- Roster & Squad -->
+    <div class="section" id="roster-section">
+      <h2>Roster & Squad at Current Level</h2>
+      <div id="roster-grid"></div>
+    </div>
+
+    <!-- Training Drills -->
+    <div class="section">
+      <h2>Training Drills</h2>
+      <table id="drills-table">
+        <thead>
+          <tr>
+            <th>Drill</th>
+            <th>Type</th>
+            <th>Min Level</th>
+            <th>Teaches</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
     <!-- Scaling Charts -->
     <div class="section">
       <h2>Scaling Curves</h2>
@@ -292,6 +334,16 @@
         <div class="chart-container">
           <div class="chart-title">Build Budget by Level</div>
           <canvas id="chart-budget" width="500" height="200"></canvas>
+        </div>
+      </div>
+      <div class="chart-row" style="margin-top:16px;">
+        <div class="chart-container">
+          <div class="chart-title">Training Cost: 1 vs 3 vs 5 Soldiers (per 1k runs)</div>
+          <canvas id="chart-squad-cost" width="500" height="200"></canvas>
+        </div>
+        <div class="chart-container">
+          <div class="chart-title">Roster Slots & Squad Size by Level</div>
+          <canvas id="chart-roster" width="500" height="200"></canvas>
         </div>
       </div>
     </div>
@@ -326,6 +378,7 @@
       trainingCostAtLevel, passiveIncomeAtLevel, raidRewardForGold,
       defenseRewardAtLevel, raidRewardCapAtLevel, goldPerDollar,
       breakEvenRaids, hoursToEarn, buildBudgetAtLevel, maxBuildingsAtLevel,
+      rosterSlotsAtLevel, squadSizeAtLevel, recruitCost, drillTrainingCost,
     } from '/src/game/Balance.js';
 
     const slider = document.getElementById('level-slider');
@@ -351,14 +404,19 @@
       const budget = buildBudgetAtLevel(level);
       const maxBuild = maxBuildingsAtLevel(level);
 
+      const rosterSlots = rosterSlotsAtLevel(level);
+      const squadSize = squadSizeAtLevel(level);
+
       // Quick stats
       document.getElementById('quick-stats').innerHTML = [
         ['Passive', `${passive} g/hr`],
-        ['Train Cost', `${trainCost} g/1k runs`],
+        ['Train Cost', `${trainCost} g/1k/soldier`],
         ['Raid Cap', `${fmt(raidCap)} g`],
         ['Defense Win', `${defReward} g`],
         ['Budget', `${fmt(budget)} g`],
         ['Max Buildings', maxBuild],
+        ['Roster', `${rosterSlots} slots`],
+        ['Squad', `${squadSize} soldiers`],
       ].map(([l, v]) =>
         `<div class="qs"><span class="qs-label">${l}:</span><span class="qs-value">${v}</span></div>`
       ).join('');
@@ -383,6 +441,21 @@
           <tr><td>Build budget</td><td>${fmt(budget)} gold</td></tr>
           <tr><td>Max buildings</td><td>${maxBuild}</td></tr>
           <tr><td>Unlocks at this level</td><td>${prog.unlocks.length > 0 ? prog.unlocks.join(', ') : 'None (scaling only)'}</td></tr>
+        </table>
+      `;
+
+      // Roster & Squad grid
+      const fullSquadTrainCost = drillTrainingCost(level, squadSize);
+      const fullRosterTrainCost = drillTrainingCost(level, rosterSlots);
+      document.getElementById('roster-grid').innerHTML = `
+        <table>
+          <tr><td class="orange">Roster slots</td><td>${rosterSlots}</td></tr>
+          <tr><td class="orange">Max squad size (for raids)</td><td>${squadSize} soldiers</td></tr>
+          <tr><td class="gold">Training cost per soldier (1k runs)</td><td>${trainCost} gold</td></tr>
+          <tr><td class="gold">Full squad training (${squadSize} soldiers, 1k runs)</td><td>${fullSquadTrainCost} gold</td></tr>
+          <tr><td class="gold">Full roster training (${rosterSlots} soldiers, 1k runs)</td><td>${fullRosterTrainCost} gold</td></tr>
+          <tr><td class="blue">Passive hrs to train full squad once</td><td>${(fullSquadTrainCost / passive).toFixed(1)} hrs</td></tr>
+          <tr><td class="green">Raids to recoup full squad training</td><td>${Math.ceil(fullSquadTrainCost / (avgRaid || 1))} raids</td></tr>
         </table>
       `;
 
@@ -669,12 +742,78 @@
         ],
         xLabels,
       );
+
+      // Chart 5: Squad training cost comparison
+      const cost1 = levels.map(l => drillTrainingCost(l, 1));
+      const cost3 = levels.map(l => drillTrainingCost(l, 3));
+      const cost5 = levels.map(l => drillTrainingCost(l, 5));
+      drawLineChart(
+        document.getElementById('chart-squad-cost'),
+        [
+          { label: '1 Soldier', data: cost1, color: '#4caf50' },
+          { label: '3 Soldiers', data: cost3, color: '#ff9800' },
+          { label: '5 Soldiers', data: cost5, color: '#f44336' },
+        ],
+        xLabels,
+      );
+
+      // Chart 6: Roster slots & squad size by level
+      const rosterData = levels.map(l => rosterSlotsAtLevel(l));
+      const squadData = levels.map(l => squadSizeAtLevel(l));
+      drawLineChart(
+        document.getElementById('chart-roster'),
+        [
+          { label: 'Roster Slots', data: rosterData, color: '#40c4ff' },
+          { label: 'Squad Size', data: squadData, color: '#ff9800' },
+        ],
+        xLabels,
+      );
+    }
+
+    // --- Soldier Classes Table (static) ---
+    function renderClassesTable() {
+      const tbody = document.querySelector('#classes-table tbody');
+      tbody.innerHTML = '';
+      for (const [key, c] of Object.entries(BALANCE.SOLDIER_CLASSES)) {
+        const planned = c.status === 'planned';
+        tbody.innerHTML += `
+          <tr class="${planned ? 'planned' : ''}">
+            <td><strong>${key}</strong><br><span style="font-size:10px;color:#888">${c.description}</span></td>
+            <td>${c.hpMultiplier}x</td>
+            <td>${c.damageMultiplier}x</td>
+            <td>${c.visionMultiplier}x</td>
+            <td class="gold">${c.recruitCost}</td>
+            <td>${c.tier}</td>
+            <td>${c.status}</td>
+          </tr>
+        `;
+      }
+    }
+
+    // --- Training Drills Table (static) ---
+    function renderDrillsTable() {
+      const tbody = document.querySelector('#drills-table tbody');
+      tbody.innerHTML = '';
+      for (const [key, d] of Object.entries(BALANCE.DRILLS)) {
+        const planned = d.status === 'planned';
+        tbody.innerHTML += `
+          <tr class="${planned ? 'planned' : ''}">
+            <td><strong>${key}</strong><br><span style="font-size:10px;color:#888">${d.description}</span></td>
+            <td>${d.type}</td>
+            <td>${d.minLevel}</td>
+            <td style="font-size:10px">${d.teaches}</td>
+            <td>${d.status}</td>
+          </tr>
+        `;
+      }
     }
 
     // --- Init ---
     slider.addEventListener('input', render);
     renderBuildingsTable();
     renderWeaponsTable();
+    renderClassesTable();
+    renderDrillsTable();
     renderIAPTable();
     renderRewardBars();
     render();

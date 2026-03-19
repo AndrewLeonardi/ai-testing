@@ -6,6 +6,8 @@
 - Curriculum learning with weight transfer works (Level 1 skills carry into Level 2)
 - 100% win rate achieved on the full scenario in ~1,500 episodes
 - Vanilla JS ML pipeline (no TensorFlow) runs in-browser at 100x speed
+- Multi-agent coordination works with parameter sharing (MAPPO prototype)
+- Base editor with click-to-place, budget system, path validation
 
 ## The Core Insight
 
@@ -15,6 +17,25 @@
 3. Have a corresponding attacker upgrade that creates counterplay
 
 If a building doesn't teach the AI something new, it's cosmetic. If an attacker upgrade doesn't unlock a new strategy, it's just stat inflation. The game is the ARMS RACE between the two sides.
+
+## Critical Design Decision: Individual Brains, Not Shared
+
+The Phase 4 MAPPO prototype used **parameter sharing** — all soldiers share one neural network. This was a useful stepping stone to validate multi-agent sim mechanics, but it is NOT the target architecture.
+
+**Why parameter sharing is wrong for this game:**
+- Additional soldiers are essentially free (no training cost for a new unit)
+- All soldiers behave identically (no specialization possible)
+- No strategic depth in squad composition (every soldier is interchangeable)
+- No attachment to individual soldiers (they're all clones)
+
+**The target: individual brains per soldier.**
+- Each soldier has its own PPO network (~15K parameters)
+- Each soldier is a separate training investment (gold sink)
+- Different soldiers develop different instincts based on their training history
+- Squad composition becomes a strategic decision (which soldiers to bring)
+- Group training produces emergent coordination from heterogeneous teams
+
+See `northstar.md` for the full design of the soldier system, roster, classes, and training drills.
 
 ## The Building/Weapon Matrix
 
@@ -33,9 +54,7 @@ Every row is a paired unlock. Defense gets a building, offense gets a counter-to
 
 ## Implementation Priority (What To Build Next)
 
-### Phase 1: Lock Down Single-Agent Curriculum (NOW)
-
-The mine learning is inconsistent across random seeds. Before adding more complexity, make Level 1 rock-solid.
+### Phase 1: Lock Down Single-Agent Curriculum ✅ DONE
 
 **1.1 — Add mine compass to observations** ✅ DONE
 - Added nearest mine distance + sin/cos direction as scalar features (scalars 14-16)
@@ -45,118 +64,120 @@ The mine learning is inconsistent across random seeds. Before adding more comple
 - Added `soldier.killedByMine` flag and mine-specific death penalty (-5.0 vs general -3.0)
 - Files: `SimLoop.js`, `Soldier.js`, `Rewards.js`
 
-**1.3 — Validate consistency**
-- Run 10+ rerolls on Level 1, track how many converge to 80%+ win rate
-- Target: 8/10 seeds should converge within 1,000 episodes
-- If not, simplify mine layout (fewer mines, wider gaps) until it's reliable
+**1.3 — Validate consistency** ✅ DONE
+- Consistent convergence across random seeds
 
-### Phase 2: Add Walls (Level 3)
+### Phase 2: Add Walls (Level 3) ✅ DONE
 
-Walls are the simplest next building — no AI, no damage, pure pathfinding puzzle.
+- Wall maze between soldier spawn and cannon/HQ area
+- Pathfinding emergence validated via distance reward gradient
 
-**2.1 — Create Level 3 scenario**
-- Add wall maze between soldier spawn and cannon/HQ area
-- Soldier must navigate around walls to reach targets
-- Graduated from Level 2 (already knows mines + cannons + shield)
-- Files: `Scenario.js` (new `createLevel3`), `main.js` (extend graduation)
+### Phase 3: Base Editor Prototype ✅ DONE
 
-**2.2 — Validate pathfinding emergence**
-- Agent should learn to navigate around walls using distance reward gradient
-- If walls create local minima (agent gets stuck in corners), add wall-proximity penalty or wall compass
+- Grid editor UI with click-to-place buildings
+- Budget system (gold + building count limits)
+- Path validation (soldier spawn → HQ must be reachable)
+- Save/load bases to localStorage
 
-### Phase 3: Base Editor Prototype
+### Phase 4: Multi-Agent Prototype (MAPPO) ✅ DONE (stepping stone)
 
-This is where DEFENSE comes alive. Players place buildings on a grid.
+Parameter sharing validated the multi-agent sim mechanics:
+- Multiple soldiers in the same episode
+- Inter-agent observations (ally compass)
+- Clustering penalty, ally death penalty
+- Squad curriculum levels 5-6
 
-**3.1 — Grid editor UI**
-- Click to place/remove buildings on the 32x32 grid
-- Building palette: Wall, Cannon, Mine, Shield Generator, HQ (fixed position)
-- Budget system: X points to spend, each building has a cost
-- Files: New `src/ui/BaseEditor.js`, modify `Renderer.js` for edit mode
+**NOTE:** This phase proved multi-agent works but used shared brains. Phase 5 replaces this with individual brains — the target architecture for the game.
 
-**3.2 — Train soldiers (on YOUR base)**
-- Player builds a base, clicks "TRAIN"
-- AI soldiers train against the player's OWN base layout
-- Player watches the AI learn — this is where the fun is
-- CRITICAL: soldiers then ATTACK OTHER PLAYERS' bases, NOT the one they trained on
-- The AI must GENERALIZE from training — it won't get to practice on the target base
-- This is the key tension: train soldiers that are smart enough to handle UNKNOWN layouts
-- Training budget is limited by gold coins — you can't train forever
+### Phase 5: Individual Soldier Brains (NEXT)
 
-**3.3 — Save/load bases**
-- Serialize grid state as JSON
-- LocalStorage for now, server later
-- Share base layouts (URL encoding or clipboard)
+This is the critical architecture shift. Replace the single shared PPO agent with per-soldier brains.
 
-### Phase 4: Multi-Agent (MAPPO)
+**5.1 — Roster System**
+- Each soldier = its own PPO instance with saved weights
+- Roster stored in localStorage (later: server)
+- Recruit new soldiers (costs gold, starts with random weights)
+- Retire soldiers (frees roster slot)
+- Roster size scales with player level
+- Files: New `src/game/Roster.js`, modify `main.js`, `Balance.js`
 
-Multiple soldiers attacking together. This is where squad tactics emerge.
+**5.2 — Soldier Classes**
+- Define 2-3 classes in Balance.js (Assault, Scout, Support)
+- Classes provide stat modifiers (HP, damage, vision range)
+- Classes have recommended drills (UI hint, not a constraint)
+- Any class can train on any drill
+- Files: `Balance.js`, new `src/ui/ClassPicker.js`
 
-**4.1 — Parameter sharing**
-- All soldiers share the same network weights
-- Each gets its own observation (egocentric view from their position)
-- Centralized training, decentralized execution
-- Files: `PPO.js` (batch multiple soldiers' transitions), `main.js` (multi-agent obs/action loop)
+**5.3 — Drill-Based Training (replaces "train on own base")**
+- Training happens in dedicated drills, NOT against the player's own base
+- Drill scenarios defined as factory functions (like current Scenario.js levels)
+- Each drill teaches a specific skill with randomized layouts
+- Player selects a soldier from roster + a drill, then watches training
+- Training costs gold per soldier per 1,000 episodes
+- Files: `Scenario.js` (add drill definitions), `Balance.js` (drill costs), modify `main.js` (drill selector flow)
 
-**4.2 — Inter-agent observation**
-- Add ally positions to scalar features (not just the 5x5 view)
-- Nearest ally distance + direction compass
-- This enables emergent coordination (spreading out, flanking)
+**5.4 — Group Training**
+- Group drills accept 2+ soldiers from the roster
+- Each soldier uses its OWN brain (not shared weights)
+- All soldiers' transitions go to their INDIVIDUAL PPO buffers
+- Soldiers see each other via ally observations
+- This is where emergent heterogeneous coordination develops
+- Files: `main.js` (multi-agent loop with separate PPO instances), `Rewards.js` (group drill rewards)
 
-**4.3 — Squad curriculum**
-- Level N: 1 soldier (current)
-- Level N+1: 2 soldiers, same base
-- Level N+2: 3 soldiers, harder base
-- Agents learn NOT to cluster (mortar splash), learn to split targets
+**5.5 — Squad Composition for Raids**
+- Player picks soldiers from roster to form a raid squad
+- Squad size limited by player level
+- During raid: inference only, no training (one-shot attack)
+- Files: New `src/ui/SquadPicker.js`, modify raid flow in `main.js`
 
-### Phase 5: Advanced Buildings
+### Phase 6: Advanced Buildings
 
 Each one introduces a new tactical dimension:
 
-**5.1 — Sniper Tower**
+**6.1 — Sniper Tower**
 - Long range (12), high damage (40), slow fire rate (6 ticks)
 - Forces timing: advance BETWEEN shots
 - Pairs with Sprint upgrade: dash through sniper lanes
 
-**5.2 — Mortar**
+**6.2 — Mortar**
 - AoE splash (3x3 area), telegraphed (shows target zone 3 ticks before impact)
 - Forces movement: never stand still in open areas
-- Deadly vs. clustered multi-agent squads
+- Deadly vs. clustered squads
 
-**5.3 — Heal Station**
+**6.3 — Heal Station**
 - Heals nearby buildings (2 HP/tick within range 4)
 - Forces target prioritization: kill heal station before cannons, or cannons regenerate
 - Strategic depth: placement near cannons vs. near HQ
 
-### Phase 6: Async PvP
+### Phase 7: Async PvP
 
-**6.1 — Attack other players' bases**
-- Player A builds a base and saves it
-- Player B's trained soldiers attack Player A's base
-- Battle runs as simulation, result sent back
+**7.1 — Raid other players' bases**
+- Player composes a squad from their roster
+- Squad attacks another player's base (one-shot, no training)
+- Battle runs as deterministic simulation, result sent back
 - No real-time multiplayer needed — it's all async
 
-**6.2 — BPR matchmaking**
+**7.2 — BPR matchmaking**
 - Separate offense rating (how good your soldiers are) and defense rating (how good your base is)
 - Match by similar combined rating
-- Defense scales 1.15x per level, offense 1.12x — defense has a slight edge to reward clever building
+- Defense scales 1.15x per level, offense 1.12x
 
-**6.3 — Replay system**
+**7.3 — Replay system**
 - Record action sequences (compact: just action indices per tick)
 - Replay attacks on your base to see how you got beaten
 - Identify weak spots, redesign base
 
 ## Economy & Balance Architecture
 
-**Single source of truth:** `src/game/Balance.js` — every combat stat, reward constant, PPO hyperparameter, building cost, training cost, loot formula, passive income rate, and IAP tier lives here. Deep-frozen, no imports, pure data.
+**Single source of truth:** `src/game/Balance.js` — every combat stat, reward constant, PPO hyperparameter, building cost, training cost, soldier class, drill cost, roster limit, loot formula, passive income rate, and IAP tier lives here. Deep-frozen, no imports, pure data.
 
-**Balance calculator:** `/balance.html` — web-based tool that imports Balance.js and visualizes the entire economy. Player level slider shows how all numbers scale. Charts show training cost vs raid reward, passive income vs costs, IAP tiers. Player archetypes (raider/balanced/defender) show gold flow per hour.
+**Balance calculator:** `/balance.html` — web-based tool that imports Balance.js and visualizes the entire economy. Player level slider shows how all numbers scale. Includes roster cost projections and drill cost breakdowns.
 
 **How to add new constants:** Add to the relevant section in Balance.js. Both the game code and the calculator automatically pick it up. Never hardcode balance numbers in game files — always import from Balance.js.
 
-**Key economy design (from Clash/Boom Beach research):**
-- Buildings: buy once, upgrade incrementally, auto-repair FREE (no replenishment cost)
-- Training: costs gold per 1000 runs, scales 1.15x per player level
+**Key economy design:**
+- Buildings: buy once, upgrade incrementally, auto-repair FREE
+- Soldiers: recruit once (gold cost), train per drill batch (gold per 1,000 episodes PER SOLDIER)
 - Loot: attacker steals 15% of defender's stored gold (capped, scales with level)
 - Passive income: 5-15% of costs, retention tool not progression
 - IAP: 6 tiers ($0.99-$99.99), ~43% volume discount at top tier
@@ -170,14 +191,15 @@ This is NOT a game with 10 levels and an ending. It's an ENGINE that supports ye
 **What scales:**
 - New building types (just add to BUILDING_TYPES, create AI behavior, add observation channel)
 - New attacker abilities (just add to ACTIONS, extend action space, add reward signal)
-- More curriculum levels (just add scenarios to Scenario.js)
+- New soldier classes (just add to SOLDIER_CLASSES in Balance.js)
+- New drills (just add scenario factory to Scenario.js + cost in Balance.js)
 - Bigger grids (change SIZE constant, observation stays egocentric so it scales)
-- More soldiers (MAPPO with parameter sharing, same network architecture)
+- More soldiers per player (individual brains are ~15KB each, trivial to store)
 
 **What stays fixed:**
 - The PPO algorithm (proven, battle-tested)
 - The observation framework (egocentric view + scalar compass features)
 - The reward structure (phase-dependent distance + combat + terminal)
-- The curriculum graduation system (weight transfer between levels)
+- The per-soldier brain architecture (one PPO per soldier, same network shape across classes)
 
-**The scaling IS the game.** Every new building × weapon combination creates a new strategic dimension. The player's base evolves, their soldiers evolve, and the arms race never ends.
+**The scaling IS the game.** Every new building × weapon × soldier class combination creates a new strategic dimension. The player's base evolves, their soldiers evolve, and the arms race never ends.

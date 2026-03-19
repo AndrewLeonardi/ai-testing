@@ -1,4 +1,5 @@
 // Main entry point: wires Simulation, ML, and Visualization together.
+// Modes: 'roster' (home), 'drill' (training), 'edit' (base editor), 'test' (test base)
 
 import { LEVELS, getHQ, createFromLayout } from './sim/Scenario.js';
 import { SimLoop } from './sim/SimLoop.js';
@@ -11,18 +12,26 @@ import { Dashboard } from './ui/Dashboard.js';
 import { BaseEditor } from './ui/BaseEditor.js';
 import { MetricsChart } from './ui/MetricsChart.js';
 import { StatusBar } from './ui/StatusBar.js';
+import { RosterPanel } from './ui/RosterPanel.js';
+import { Roster } from './game/Roster.js';
 import { BALANCE } from './game/Balance.js';
 
 // --- State ---
 let sim, grid, soldiers, buildings, hq;
-let agent;
 let renderer, interpolator;
 let dashboard, metricsChart, statusBar;
+let rosterPanel = null;
 let editor = null;
+let roster;
 
-// Mode: 'train' | 'edit' | 'test'
-let mode = 'train';
-let testLayout = null; // layout being tested
+// Mode: 'roster' | 'drill' | 'edit' | 'test'
+let mode = 'roster';
+let testLayout = null;
+
+// Drill training state (per-soldier brain)
+let trainingSoldierRecord = null; // SoldierRecord being trained
+let trainingDrillName = null;     // which drill
+let drillLevelDef = null;         // the LEVELS entry used for the drill
 
 // Training stats
 let episode = 0;
@@ -30,153 +39,296 @@ let totalSteps = 0;
 let episodeReward = 0;
 let speed = 1;
 let paused = false;
-let winHistory = []; // last 100 episode results
-const HORIZON = BALANCE.PPO.horizon; // PPO update every N steps
+let winHistory = [];
+const HORIZON = BALANCE.PPO.horizon;
 let stepsSinceUpdate = 0;
 let lastEntropy = 0;
-let currentLevel = 1;
-let numTeamSoldiers = 1; // tracks team=0 soldier count for reward normalization
+let numTeamSoldiers = 1;
+
+// --- Drill → Level mapping ---
+// Maps drill names to LEVELS entries (drills reuse existing level factories).
+// This is the bridge between the drill system and the existing scenario system.
+function getDrillLevel(drillName) {
+  const drillToLevel = {
+    MINE_FIELD: 0,      // Level 1: mines only
+    CANNON_ALLEY: 1,    // Level 2: mines + cannons + shield
+    SHIELD_SIEGE: 1,    // Level 2: mines + cannons + shield
+    THE_MAZE: 2,        // Level 3: walls + mines + cannons
+    KILL_ZONE: 3,       // Level 4: mine walls + dense defenses
+  };
+  const idx = drillToLevel[drillName];
+  if (idx !== undefined && idx < LEVELS.length) return LEVELS[idx];
+  return LEVELS[0]; // fallback to level 1
+}
 
 // --- Init ---
 function init() {
-  // Create PPO agent
-  agent = new PPO();
-
-  // Setup first episode
-  resetEpisode();
+  roster = new Roster();
 
   // Renderer
   const canvas = document.getElementById('game-canvas');
   renderer = new Renderer(canvas);
-  const state = sim.getState();
-  renderer.initFromState(state);
   interpolator = new Interpolator();
-  interpolator.pushState(state);
 
   // UI
-  dashboard = new Dashboard(document.getElementById('controls'));
   metricsChart = new MetricsChart(document.getElementById('metrics'));
   statusBar = new StatusBar(document.getElementById('status'));
 
-  dashboard.onSpeedChange = (s) => { speed = s; };
-  dashboard.onPauseToggle = (p) => { paused = p; };
-  dashboard.onReset = () => { endEpisode(false); resetEpisode(); };
-  dashboard.onGraduate = () => { graduate(); };
-  dashboard.onRerollWeights = () => {
-    agent = new PPO();
-    winHistory = [];
-    stepsSinceUpdate = 0;
-    metricsChart.rewardHistory = [];
-    metricsChart.entropyHistory = [];
-    // Keep level, keep episode count — just re-randomize the network
-    resetEpisode();
-    console.log(`Rerolled weights on Level ${currentLevel}. Fresh random init.`);
-  };
-  dashboard.onResetTraining = () => {
-    agent = new PPO();
-    episode = 0;
-    totalSteps = 0;
-    winHistory = [];
-    stepsSinceUpdate = 0;
-    currentLevel = 1;
-    metricsChart.rewardHistory = [];
-    metricsChart.entropyHistory = [];
-    resetEpisode();
-  };
-  dashboard.onValidateTransfer = () => { runTransferValidation(); };
-
-  // Mode toggle button — lives in #dashboard above controls
-  const modeBtn = document.createElement('button');
-  modeBtn.id = 'btn-mode-toggle';
-  modeBtn.className = 'btn';
-  modeBtn.style.cssText = 'width:100%;background:#1a2a3a;color:#ff9800;border-color:#ff9800;font-size:14px;padding:10px;margin-bottom:8px';
-  modeBtn.textContent = 'EDIT BASE';
-  modeBtn.addEventListener('click', () => {
-    if (mode === 'train') enterEditMode();
-    else if (mode === 'edit') exitEditMode();
-  });
-  const dashboardEl = document.getElementById('dashboard');
-  dashboardEl.insertBefore(modeBtn, document.getElementById('controls'));
+  // Start in roster mode
+  enterRosterMode();
 
   // Start game loop
   requestAnimationFrame(gameLoop);
 }
 
-// --- Mode switching ---
+// =============================================================================
+// MODE: ROSTER (home screen)
+// =============================================================================
+function enterRosterMode() {
+  mode = 'roster';
+  paused = true;
+
+  // Hide metrics and status
+  document.getElementById('metrics').style.display = 'none';
+  document.getElementById('status').style.display = 'none';
+
+  // Clear any existing mode toggle button
+  const oldBtn = document.getElementById('btn-mode-toggle');
+  if (oldBtn) oldBtn.remove();
+
+  const controlsEl = document.getElementById('controls');
+  rosterPanel = new RosterPanel(controlsEl, roster);
+  rosterPanel.onTrainSoldier = (soldierId, drillName) => {
+    enterDrillMode(soldierId, drillName);
+  };
+  rosterPanel.onEditBase = () => {
+    enterEditMode();
+  };
+
+  renderer.clear();
+  renderer.render(); // flush empty scene to canvas
+}
+
+// =============================================================================
+// MODE: DRILL (training a specific soldier on a specific drill)
+// =============================================================================
+function enterDrillMode(soldierId, drillName) {
+  const soldierRecord = roster.getById(soldierId);
+  if (!soldierRecord) return;
+
+  trainingSoldierRecord = soldierRecord;
+  trainingDrillName = drillName;
+  drillLevelDef = getDrillLevel(drillName);
+
+  mode = 'drill';
+  paused = false;
+  episode = 0;
+  totalSteps = 0;
+  winHistory = [];
+  stepsSinceUpdate = 0;
+  lastEntropy = 0;
+
+  // Show metrics and status
+  document.getElementById('metrics').style.display = '';
+  document.getElementById('status').style.display = '';
+
+  // Clear roster panel
+  if (rosterPanel) { rosterPanel.dispose(); rosterPanel = null; }
+
+  // Build drill training UI
+  const controlsEl = document.getElementById('controls');
+  dashboard = new Dashboard(controlsEl);
+
+  // Override dashboard callbacks for drill context
+  dashboard.onSpeedChange = (s) => { speed = s; };
+  dashboard.onPauseToggle = (p) => { paused = p; };
+  dashboard.onReset = () => { endEpisode(false); resetDrillEpisode(); };
+  dashboard.onGraduate = () => {}; // no graduation in drill mode
+  dashboard.onRerollWeights = () => {
+    // Reroll THIS soldier's brain
+    trainingSoldierRecord.brain = new PPO();
+    winHistory = [];
+    stepsSinceUpdate = 0;
+    metricsChart.rewardHistory = [];
+    metricsChart.entropyHistory = [];
+    resetDrillEpisode();
+    console.log(`Rerolled ${trainingSoldierRecord.name}'s brain.`);
+  };
+  dashboard.onResetTraining = () => {
+    trainingSoldierRecord.brain = new PPO();
+    trainingSoldierRecord.totalEpisodes = 0;
+    trainingSoldierRecord.drillHistory = {};
+    episode = 0;
+    totalSteps = 0;
+    winHistory = [];
+    stepsSinceUpdate = 0;
+    metricsChart.rewardHistory = [];
+    metricsChart.entropyHistory = [];
+    resetDrillEpisode();
+  };
+  dashboard.onValidateTransfer = () => { runDrillValidation(); };
+
+  metricsChart.rewardHistory = [];
+  metricsChart.entropyHistory = [];
+
+  // Add a "BACK TO ROSTER" button above controls
+  const backBtn = document.createElement('button');
+  backBtn.id = 'btn-mode-toggle';
+  backBtn.className = 'btn';
+  backBtn.style.cssText = 'width:100%;background:#3a2a1a;color:#ffab40;border-color:#ffab40;font-size:14px;padding:10px;margin-bottom:8px';
+  backBtn.textContent = 'BACK TO ROSTER';
+  backBtn.addEventListener('click', () => {
+    exitDrillMode();
+  });
+  const dashboardEl = document.getElementById('dashboard');
+  dashboardEl.insertBefore(backBtn, document.getElementById('controls'));
+
+  // Soldier info header
+  const infoEl = document.createElement('div');
+  infoEl.id = 'drill-soldier-info';
+  infoEl.style.cssText = 'text-align:center;padding:4px 0;font-size:12px;border-bottom:1px solid #2a5a2a;margin-bottom:4px';
+  const classColors = { ASSAULT: '#ff5252', SCOUT: '#40c4ff', SUPPORT: '#69f0ae' };
+  const color = classColors[trainingSoldierRecord.soldierClass] || '#e0e0e0';
+  infoEl.innerHTML = `
+    <span style="color:${color};font-weight:bold">${trainingSoldierRecord.name}</span>
+    <span style="color:#aaa;font-size:10px">(${trainingSoldierRecord.soldierClass})</span><br>
+    <span style="color:#8bc34a;font-size:10px">Drill: ${drillName.replace(/_/g, ' ')}</span>
+  `;
+  dashboardEl.insertBefore(infoEl, document.getElementById('controls'));
+
+  resetDrillEpisode();
+}
+
+function exitDrillMode() {
+  // Save soldier brain and training stats
+  if (trainingSoldierRecord) {
+    trainingSoldierRecord.recordTraining(trainingDrillName, episode);
+    roster.save();
+  }
+
+  // Remove drill info elements
+  const infoEl = document.getElementById('drill-soldier-info');
+  if (infoEl) infoEl.remove();
+
+  trainingSoldierRecord = null;
+  trainingDrillName = null;
+  drillLevelDef = null;
+
+  enterRosterMode();
+}
+
+function resetDrillEpisode() {
+  const scenario = drillLevelDef.factory();
+  grid = scenario.grid;
+  soldiers = scenario.soldiers;
+  buildings = scenario.buildings;
+  hq = scenario.hq;
+  sim = new SimLoop(grid, soldiers, buildings, hq, drillLevelDef.maxSteps);
+  episodeReward = 0;
+  numTeamSoldiers = soldiers.filter(s => s.team === 0).length;
+
+  if (renderer) {
+    renderer.clear();
+    renderer.initFromState(sim.getState());
+    interpolator.pushState(sim.getState());
+  }
+}
+
+function endEpisode(won) {
+  episode++;
+  winHistory.push(won ? 1 : 0);
+  if (winHistory.length > 100) winHistory.shift();
+
+  metricsChart.addPoint(episodeReward / numTeamSoldiers, lastEntropy);
+}
+
+function runDrillValidation() {
+  if (!trainingSoldierRecord) return;
+  const savedPaused = paused;
+  paused = true;
+
+  const VALIDATION_EPISODES = 100;
+  let wins = 0;
+  const brain = trainingSoldierRecord.brain;
+
+  for (let ep = 0; ep < VALIDATION_EPISODES; ep++) {
+    const scenario = drillLevelDef.factory();
+    const vGrid = scenario.grid;
+    const vSoldiers = scenario.soldiers;
+    const vBuildings = scenario.buildings;
+    const vHq = scenario.hq;
+    const vSim = new SimLoop(vGrid, vSoldiers, vBuildings, vHq, drillLevelDef.maxSteps);
+
+    while (!vSim.done) {
+      const actions = [];
+      for (const s of vSoldiers) {
+        if (!s.alive || s.team !== 0) { actions.push(7); continue; }
+        const obs = buildObservation(s, vGrid, vSoldiers, vBuildings, vHq, vSim.shieldActive);
+        const result = brain.selectAction(obs);
+        actions.push(result.action);
+      }
+      vSim.tick(actions);
+    }
+    if (vSim.won) wins++;
+  }
+
+  const transferRate = (wins / VALIDATION_EPISODES * 100).toFixed(1);
+  const status = wins / VALIDATION_EPISODES >= 0.7 ? 'PASS' : (wins / VALIDATION_EPISODES >= 0.5 ? 'PARTIAL' : 'FAIL');
+
+  console.log(`Drill Validation (${trainingSoldierRecord.name}): ${wins}/${VALIDATION_EPISODES} wins (${transferRate}%) — ${status}`);
+  alert(`Drill Validation: ${trainingSoldierRecord.name}\nDrill: ${trainingDrillName}\n\n${wins}/${VALIDATION_EPISODES} wins (${transferRate}%)\n\nStatus: ${status}`);
+
+  paused = savedPaused;
+}
+
+// =============================================================================
+// MODE: EDIT (base editor — unchanged from before)
+// =============================================================================
 function enterEditMode() {
   mode = 'edit';
   paused = true;
   renderer.clear();
 
-  // Hide metrics and status during edit
+  // Hide metrics and status
   document.getElementById('metrics').style.display = 'none';
   document.getElementById('status').style.display = 'none';
 
-  const modeBtn = document.getElementById('btn-mode-toggle');
-  modeBtn.textContent = 'BACK TO TRAINING';
-  modeBtn.style.background = '#2a5a2a';
-  modeBtn.style.color = '#8bc34a';
-  modeBtn.style.borderColor = '#4caf50';
+  // Clean up roster panel if coming from roster
+  if (rosterPanel) { rosterPanel.dispose(); rosterPanel = null; }
+
+  // Clear existing mode button
+  const oldBtn = document.getElementById('btn-mode-toggle');
+  if (oldBtn) oldBtn.remove();
+
+  // Add back button
+  const backBtn = document.createElement('button');
+  backBtn.id = 'btn-mode-toggle';
+  backBtn.className = 'btn';
+  backBtn.style.cssText = 'width:100%;background:#2a5a2a;color:#8bc34a;border-color:#4caf50;font-size:14px;padding:10px;margin-bottom:8px';
+  backBtn.textContent = 'BACK TO ROSTER';
+  backBtn.addEventListener('click', () => { exitEditMode(); });
+  const dashboardEl = document.getElementById('dashboard');
+  dashboardEl.insertBefore(backBtn, document.getElementById('controls'));
 
   const controlsEl = document.getElementById('controls');
   editor = new BaseEditor(controlsEl, renderer, onTestLayout, exitEditMode);
 }
 
 function exitEditMode() {
-  mode = 'train';
-  if (editor) {
-    editor.dispose();
-    editor = null;
-  }
+  if (editor) { editor.dispose(); editor = null; }
   renderer.clear();
 
-  // Restore metrics and status
+  // Restore metrics and status visibility
   document.getElementById('metrics').style.display = '';
   document.getElementById('status').style.display = '';
 
-  const modeBtn = document.getElementById('btn-mode-toggle');
-  modeBtn.textContent = 'EDIT BASE';
-  modeBtn.style.background = '#1a2a3a';
-  modeBtn.style.color = '#ff9800';
-  modeBtn.style.borderColor = '#ff9800';
-
-  // Rebuild dashboard
-  const controlsEl = document.getElementById('controls');
-  dashboard = new Dashboard(controlsEl);
-  dashboard.onSpeedChange = (s) => { speed = s; };
-  dashboard.onPauseToggle = (p) => { paused = p; };
-  dashboard.onReset = () => { endEpisode(false); resetEpisode(); };
-  dashboard.onGraduate = () => { graduate(); };
-  dashboard.onRerollWeights = () => {
-    agent = new PPO();
-    winHistory = [];
-    stepsSinceUpdate = 0;
-    metricsChart.rewardHistory = [];
-    metricsChart.entropyHistory = [];
-    resetEpisode();
-  };
-  dashboard.onResetTraining = () => {
-    agent = new PPO();
-    episode = 0;
-    totalSteps = 0;
-    winHistory = [];
-    stepsSinceUpdate = 0;
-    currentLevel = 1;
-    metricsChart.rewardHistory = [];
-    metricsChart.entropyHistory = [];
-    resetEpisode();
-  };
-  dashboard.onValidateTransfer = () => { runTransferValidation(); };
-
-  paused = false;
-  resetEpisode();
+  enterRosterMode();
 }
 
 function onTestLayout(layout) {
   mode = 'test';
   testLayout = layout;
 
-  // Hide the editor, show a minimal test UI
   const controlsEl = document.getElementById('controls');
   controlsEl.innerHTML = `
     <div class="stat-row"><span class="label">Mode</span><span class="value">TESTING</span></div>
@@ -196,14 +348,12 @@ function onTestLayout(layout) {
   speed = 1;
 
   controlsEl.querySelector('#btn-stop-test').addEventListener('click', () => {
-    // Return to editor
     mode = 'edit';
     renderer.clear();
     const controlsEl2 = document.getElementById('controls');
     editor = new BaseEditor(controlsEl2, renderer, onTestLayout, exitEditMode);
   });
 
-  // Setup scenario from layout
   if (editor) { editor.dispose(); editor = null; }
   renderer.clear();
 
@@ -214,103 +364,16 @@ function onTestLayout(layout) {
   hq = scenario.hq;
   sim = new SimLoop(grid, soldiers, buildings, hq);
 
+  // Use first roster soldier's brain for test mode (or a fresh PPO if none)
   renderer.initFromState(sim.getState());
   interpolator = new Interpolator();
   interpolator.pushState(sim.getState());
   paused = false;
 }
 
-function graduate() {
-  if (currentLevel >= LEVELS.length) return; // already at max
-  currentLevel++;
-  // Keep the agent — weights transfer!
-  // Reset episode tracking for new level
-  episode = 0;
-  winHistory = [];
-  // Clear PPO buffer to avoid stale transitions from old scenario
-  agent.clearBuffer();
-  stepsSinceUpdate = 0;
-  metricsChart.rewardHistory = [];
-  metricsChart.entropyHistory = [];
-  resetEpisode();
-  console.log(`Graduated to Level ${currentLevel}! Weights preserved.`);
-}
-
-function resetEpisode() {
-  const levelDef = LEVELS[currentLevel - 1];
-  const scenario = levelDef.factory();
-  grid = scenario.grid;
-  soldiers = scenario.soldiers;
-  buildings = scenario.buildings;
-  hq = scenario.hq;
-  sim = new SimLoop(grid, soldiers, buildings, hq, levelDef.maxSteps);
-  episodeReward = 0;
-  numTeamSoldiers = soldiers.filter(s => s.team === 0).length;
-
-  if (renderer) {
-    renderer.clear();
-    renderer.initFromState(sim.getState());
-    interpolator.pushState(sim.getState());
-  }
-}
-
-function endEpisode(won) {
-  episode++;
-  winHistory.push(won ? 1 : 0);
-  if (winHistory.length > 100) winHistory.shift();
-
-  metricsChart.addPoint(episodeReward / numTeamSoldiers, lastEntropy);
-}
-
-// --- Transfer Validation ---
-// Freezes weights, runs 100 episodes on fresh random layouts (no training).
-// Proves skill TRANSFER: did the agent learn "mine avoidance" or "this specific path"?
-function runTransferValidation() {
-  const savedPaused = paused;
-  paused = true;
-
-  const VALIDATION_EPISODES = 100;
-  let wins = 0;
-
-  const levelDef = LEVELS[currentLevel - 1];
-
-  for (let ep = 0; ep < VALIDATION_EPISODES; ep++) {
-    // Fresh random layout each episode
-    const scenario = levelDef.factory();
-    const vGrid = scenario.grid;
-    const vSoldiers = scenario.soldiers;
-    const vBuildings = scenario.buildings;
-    const vHq = scenario.hq;
-    const vSim = new SimLoop(vGrid, vSoldiers, vBuildings, vHq, levelDef.maxSteps);
-
-    // Run episode with frozen weights (inference only, no learning)
-    while (!vSim.done) {
-      const actions = [];
-      for (const s of vSoldiers) {
-        if (!s.alive || s.team !== 0) {
-          actions.push(7); // STAY
-          continue;
-        }
-        const obs = buildObservation(s, vGrid, vSoldiers, vBuildings, vHq, vSim.shieldActive);
-        const result = agent.selectAction(obs);
-        actions.push(result.action);
-      }
-      vSim.tick(actions);
-    }
-
-    if (vSim.won) wins++;
-  }
-
-  const transferRate = (wins / VALIDATION_EPISODES * 100).toFixed(1);
-  const status = wins / VALIDATION_EPISODES >= 0.7 ? 'PASS' : (wins / VALIDATION_EPISODES >= 0.5 ? 'PARTIAL' : 'FAIL');
-
-  console.log(`Transfer Validation: ${wins}/${VALIDATION_EPISODES} wins (${transferRate}%) — ${status}`);
-  alert(`Transfer Validation (Level ${currentLevel})\n\n${wins}/${VALIDATION_EPISODES} wins (${transferRate}%)\n\nStatus: ${status}\n\n${status === 'PASS' ? 'Skill transfer PROVEN! Ready to graduate.' : status === 'PARTIAL' ? 'Partial transfer. More training may help.' : 'Agent is memorizing, not generalizing. Investigate.'}`);
-
-  paused = savedPaused;
-}
-
-// --- Game Loop ---
+// =============================================================================
+// GAME LOOP
+// =============================================================================
 let lastTime = 0;
 
 function gameLoop(timestamp) {
@@ -319,8 +382,8 @@ function gameLoop(timestamp) {
   const dt = timestamp - lastTime;
   lastTime = timestamp;
 
-  if (mode === 'edit') {
-    // Editor handles its own rendering
+  if (mode === 'roster' || mode === 'edit') {
+    // No simulation running
     return;
   }
 
@@ -331,6 +394,8 @@ function gameLoop(timestamp) {
 
   // Test mode: inference only, one episode
   if (mode === 'test') {
+    // Use first roster soldier's brain or a default
+    const testBrain = (roster.soldiers.length > 0) ? roster.soldiers[0].brain : new PPO();
     const ticksThisFrame = speed;
     for (let t = 0; t < ticksThisFrame; t++) {
       if (sim.done) {
@@ -343,7 +408,7 @@ function gameLoop(timestamp) {
       for (const s of soldiers) {
         if (!s.alive || s.team !== 0) { actions.push(7); continue; }
         const obs = buildObservation(s, grid, soldiers, buildings, hq, sim.shieldActive);
-        const result = agent.selectAction(obs);
+        const result = testBrain.selectAction(obs);
         actions.push(result.action);
       }
       sim.tick(actions);
@@ -355,118 +420,121 @@ function gameLoop(timestamp) {
     return;
   }
 
-  // --- Training mode ---
-  // Run simulation ticks based on speed
-  const ticksThisFrame = speed;
-  for (let t = 0; t < ticksThisFrame; t++) {
-    if (sim.done) {
-      // End episode, start new one
-      endEpisode(sim.won);
+  // ==========================================================================
+  // DRILL MODE — training a specific soldier's individual brain
+  // ==========================================================================
+  if (mode === 'drill' && trainingSoldierRecord) {
+    const brain = trainingSoldierRecord.brain;
+    const ticksThisFrame = speed;
 
-      // If enough steps, trigger PPO update
-      if (agent.bufferSize() >= HORIZON) {
-        const lastSoldier = soldiers.find(s => s.team === 0);
-        let lastObs = null;
-        if (lastSoldier && lastSoldier.alive) {
-          lastObs = buildObservation(lastSoldier, grid, soldiers, buildings, hq, sim.shieldActive);
+    for (let t = 0; t < ticksThisFrame; t++) {
+      if (sim.done) {
+        endEpisode(sim.won);
+
+        // PPO update for this soldier's brain
+        if (brain.bufferSize() >= HORIZON) {
+          const lastSoldier = soldiers.find(s => s.team === 0);
+          let lastObs = null;
+          if (lastSoldier && lastSoldier.alive) {
+            lastObs = buildObservation(lastSoldier, grid, soldiers, buildings, hq, sim.shieldActive);
+          }
+          brain.update(lastObs);
         }
-        agent.update(lastObs);
-      }
 
-      resetEpisode();
-      continue;
-    }
-
-    // Get observations and actions for each soldier
-    const actions = [];
-    const prevStates = [];
-
-    for (const s of soldiers) {
-      if (!s.alive || s.team !== 0) {
-        actions.push(7); // STAY for dead/defender soldiers
-        prevStates.push(null);
+        resetDrillEpisode();
         continue;
       }
 
-      const obs = buildObservation(s, grid, soldiers, buildings, hq, sim.shieldActive);
-      const prevState = { x: s.x, y: s.y };
-      prevStates.push(prevState);
+      // Get observations and actions — all soldiers use THIS soldier's brain
+      // (solo drill: only 1 soldier anyway; group drill future: each has own brain)
+      const actions = [];
 
-      const result = agent.selectAction(obs);
-      actions.push(result.action);
-      lastEntropy = result.entropy;
+      for (const s of soldiers) {
+        if (!s.alive || s.team !== 0) {
+          actions.push(7);
+          continue;
+        }
 
-      // Store previous obs (we'll compute reward after tick)
-      s._currentObs = obs;
-      s._logProb = result.logProb;
-      s._value = result.value;
-      s._prevState = prevState;
-    }
+        const obs = buildObservation(s, grid, soldiers, buildings, hq, sim.shieldActive);
+        const prevState = { x: s.x, y: s.y };
 
-    // Execute simulation tick
-    sim.tick(actions);
-    totalSteps++;
-    stepsSinceUpdate++;
+        const result = brain.selectAction(obs);
+        actions.push(result.action);
+        lastEntropy = result.entropy;
 
-    // Compute rewards and store transitions
-    for (const s of soldiers) {
-      if (s.team !== 0) continue;
-      if (!s._currentObs) continue;
-
-      const reward = computeReward(
-        s, s._prevState, grid, buildings, soldiers, hq,
-        sim.done, sim.won, sim.shieldActive
-      );
-      episodeReward += reward;
-
-      agent.store(
-        s._currentObs, s.lastAction, s._logProb, s._value,
-        reward, sim.done
-      );
-    }
-
-    // PPO update check (mid-episode updates)
-    if (agent.bufferSize() >= HORIZON && !sim.done) {
-      const activeSoldier = soldiers.find(s => s.team === 0 && s.alive);
-      let lastObs = null;
-      if (activeSoldier) {
-        lastObs = buildObservation(activeSoldier, grid, soldiers, buildings, hq, sim.shieldActive);
+        s._currentObs = obs;
+        s._logProb = result.logProb;
+        s._value = result.value;
+        s._prevState = prevState;
       }
-      agent.update(lastObs);
-      stepsSinceUpdate = 0;
+
+      sim.tick(actions);
+      totalSteps++;
+      stepsSinceUpdate++;
+
+      // Compute rewards and store transitions into THIS soldier's brain buffer
+      for (const s of soldiers) {
+        if (s.team !== 0) continue;
+        if (!s._currentObs) continue;
+
+        const reward = computeReward(
+          s, s._prevState, grid, buildings, soldiers, hq,
+          sim.done, sim.won, sim.shieldActive
+        );
+        episodeReward += reward;
+
+        brain.store(
+          s._currentObs, s.lastAction, s._logProb, s._value,
+          reward, sim.done
+        );
+      }
+
+      // Mid-episode PPO update
+      if (brain.bufferSize() >= HORIZON && !sim.done) {
+        const activeSoldier = soldiers.find(s => s.team === 0 && s.alive);
+        let lastObs = null;
+        if (activeSoldier) {
+          lastObs = buildObservation(activeSoldier, grid, soldiers, buildings, hq, sim.shieldActive);
+        }
+        brain.update(lastObs);
+        stepsSinceUpdate = 0;
+      }
+    }
+
+    // Update visualization
+    const state = sim.getState();
+    interpolator.pushState(state);
+    const alpha = interpolator.getAlpha(dt);
+    renderer.update(state, alpha);
+    renderer.render();
+
+    // Update dashboard stats
+    const winRate = winHistory.length > 0
+      ? winHistory.reduce((a, b) => a + b, 0) / winHistory.length
+      : 0;
+
+    dashboard.updateStats({
+      level: 1,
+      maxLevel: 1,
+      levelName: trainingDrillName.replace(/_/g, ' '),
+      episode,
+      step: sim.step,
+      totalSteps,
+      episodeReward: episodeReward / numTeamSoldiers,
+      soldiers: numTeamSoldiers,
+      winRate,
+      entropy: lastEntropy,
+      policyLoss: brain.lastMetrics.policyLoss,
+      valueLoss: brain.lastMetrics.valueLoss,
+    });
+
+    statusBar.update(state);
+
+    // Auto-save brain every 100 episodes
+    if (episode > 0 && episode % 100 === 0) {
+      roster.save();
     }
   }
-
-  // Update visualization (only for last state to avoid overhead at high speed)
-  const state = sim.getState();
-  interpolator.pushState(state);
-  const alpha = interpolator.getAlpha(dt);
-  renderer.update(state, alpha);
-  renderer.render();
-
-  // Update UI
-  const winRate = winHistory.length > 0
-    ? winHistory.reduce((a, b) => a + b, 0) / winHistory.length
-    : 0;
-
-  // No auto-graduation — player validates transfer and graduates manually
-
-  dashboard.updateStats({
-    level: currentLevel,
-    maxLevel: LEVELS.length,
-    levelName: LEVELS[currentLevel - 1].name,
-    episode,
-    step: sim.step,
-    totalSteps,
-    episodeReward: episodeReward / numTeamSoldiers,
-    soldiers: numTeamSoldiers,
-    winRate,
-    entropy: lastEntropy,
-    policyLoss: agent.lastMetrics.policyLoss,
-    valueLoss: agent.lastMetrics.valueLoss,
-  });
-
-  statusBar.update(state);
 }
 
 // --- Start ---

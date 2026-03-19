@@ -14,7 +14,7 @@ OBSERVE → DECIDE → ACT → GET REWARD → LEARN → REPEAT
 
 **File: `src/ml/Observations.js`**
 
-Every tick, we build a 142-number vector that describes the world from the soldier's perspective. This is the neural network's ONLY input.
+Every tick, we build a 145-number vector that describes the world from the soldier's perspective. This is the neural network's ONLY input.
 
 ### The 5x5 Egocentric Grid (125 numbers)
 
@@ -32,7 +32,7 @@ This window has 5 channels (layers), each 25 numbers (5x5):
 
 **Why egocentric?** If we used absolute coordinates, the network would need to learn "go to (16, 18)" which is brittle. With egocentric view, the network learns "move toward the thing in front-left" which generalizes to any position.
 
-### Scalar Features (17 numbers)
+### Scalar Features (20 numbers)
 
 Beyond the local view, the soldier gets global context:
 
@@ -54,6 +54,9 @@ scalars[13] = shoot_cooldown / max_cooldown → Can I shoot yet?
 scalars[14] = nearest_mine_dist / maxDist   → Mine compass: distance (0 to 1)
 scalars[15] = sin(relative_angle_to_mine)   → Mine compass: sin
 scalars[16] = cos(relative_angle_to_mine)   → Mine compass: cos
+scalars[17] = nearest_ally_dist / maxDist   → Ally compass: distance (0 to 1)
+scalars[18] = sin(relative_angle_to_ally)   → Ally compass: sin
+scalars[19] = cos(relative_angle_to_ally)   → Ally compass: cos
 ```
 
 **The compass trick (sin/cos encoding):** Instead of giving raw angles (which wrap around discontinuously at 360°→0°), we give sin and cos of the relative angle. This creates a smooth, continuous signal that the neural network can easily learn from. "Target is to my front-left" = specific sin/cos values regardless of absolute orientation.
@@ -62,17 +65,17 @@ scalars[16] = cos(relative_angle_to_mine)   → Mine compass: cos
 
 **File: `src/ml/Network.js`**
 
-The 142-number observation goes into a feedforward neural network:
+The 145-number observation goes into a feedforward neural network:
 
 ```
-INPUT (142) → Hidden Layer 1 (64 neurons, ReLU) → Hidden Layer 2 (32 neurons, ReLU) → OUTPUT
+INPUT (145) → Hidden Layer 1 (64 neurons, ReLU) → Hidden Layer 2 (32 neurons, ReLU) → OUTPUT
 ```
 
 There are actually TWO networks:
 
 ### Policy Network (the "actor")
 ```
-142 → 64 → 32 → 8 (one per action) → softmax → probabilities
+145 → 64 → 32 → 8 (one per action) → softmax → probabilities
 ```
 Output: probability distribution over 8 actions. Example: `[0.02, 0.01, 0.05, 0.03, 0.60, 0.20, 0.05, 0.04]` means "60% chance of SHOOT, 20% chance of DUCK, etc."
 
@@ -80,7 +83,7 @@ The soldier SAMPLES from this distribution — it doesn't always pick the highes
 
 ### Value Network (the "critic")
 ```
-142 → 64 → 32 → 1 (single number)
+145 → 64 → 32 → 1 (single number)
 ```
 Output: estimated total future reward from this state. "How good is my current situation?" This helps the learning algorithm decide which actions were better than expected.
 
@@ -91,7 +94,7 @@ Each layer is a matrix multiplication + bias + activation:
 output = ReLU(weights × input + bias)
 ```
 
-- **Weights**: A matrix of numbers (e.g., 142×64 = 9,088 numbers for layer 1)
+- **Weights**: A matrix of numbers (e.g., 145×64 = 9,280 numbers for layer 1)
 - **Bias**: One number per output neuron
 - **ReLU**: `max(0, x)` — clips negative values to zero, adds non-linearity
 - **Softmax** (final policy layer): Converts raw scores to probabilities that sum to 1
@@ -260,7 +263,7 @@ This is exactly like human learning: you don't forget how to walk when you learn
 
 ### What Transfers
 
-The observation space is the SAME across levels (142 dimensions). Some features are zero on simpler levels (e.g., cannon compass is [0,0,0] on Level 1 because there are no cannons). When cannons appear in Level 2, those weights start getting gradient signal for the first time, and the agent learns what they mean.
+The observation space is the SAME across levels (145 dimensions). Some features are zero on simpler levels (e.g., cannon compass is [0,0,0] on Level 1 because there are no cannons). When cannons appear in Level 2, those weights start getting gradient signal for the first time, and the agent learns what they mean.
 
 ## Watching the Learning (What the Metrics Mean)
 
@@ -315,3 +318,77 @@ The observation space is the SAME across levels (142 dimensions). Some features 
 ### "High entropy won't come down"
 - **Cause**: Entropy coefficient too high, or contradictory reward signals
 - **Fix**: Reduce ENTROPY_COEFF from 0.05 to 0.02. Check for reward signals that cancel out.
+
+## Individual Brains vs. Shared Brains
+
+### The Design Choice
+
+The current codebase includes a MAPPO prototype where all soldiers share one neural network (parameter sharing). This was a useful stepping stone for validating multi-agent simulation mechanics, but it is **not the target architecture**.
+
+**The target: every soldier gets its own PPO brain.**
+
+### Why Individual Brains
+
+| | Shared Brain (MAPPO) | Individual Brains |
+|---|---|---|
+| Training cost | Train once, all soldiers benefit | Train each soldier separately |
+| Behavior | All soldiers act identically | Each soldier develops unique instincts |
+| Specialization | Impossible | Emerges naturally from training history |
+| Squad composition | Interchangeable units | Strategic mix of differently-trained soldiers |
+| Economy impact | Additional soldiers are free | Each soldier is a gold investment |
+| Emergent strategy | Limited (homogeneous teams) | Rich (heterogeneous teams coordinate differently) |
+
+The game's core appeal is watching AI develop interesting, emergent strategy. Homogeneous teams (shared brain) converge on a single optimal policy. Heterogeneous teams (individual brains) produce emergent coordination — a mine specialist paired with a cannon specialist develops flanking behavior that neither could discover alone.
+
+### How It Works in Code
+
+**Shared brain (current prototype):**
+```
+agent = new PPO();                    // ONE agent
+for (soldier of soldiers) {
+  obs = buildObservation(soldier);
+  action = agent.selectAction(obs);   // Same brain for all
+  agent.store(obs, action, ...);      // All transitions in one buffer
+}
+agent.update();                       // One update trains all
+```
+
+**Individual brains (target architecture):**
+```
+// Each soldier in the roster has its own PPO instance
+roster = [new PPO(), new PPO(), new PPO()];
+
+// During training drill, each soldier uses its own brain
+for (let i = 0; i < squad.length; i++) {
+  obs = buildObservation(squad[i].soldier);
+  action = roster[i].selectAction(obs);   // Each soldier's own brain
+  roster[i].store(obs, action, ...);      // Each soldier's own buffer
+}
+
+// Each brain updates independently
+for (agent of roster) agent.update();
+```
+
+### Group Training
+
+When multiple soldiers with **different training histories** enter a group drill together:
+
+1. Each soldier acts from its own brain
+2. They observe each other via the ally compass features (scalars 17-19)
+3. Each soldier's transitions go into its OWN buffer
+4. Each brain updates independently based on its own experience
+
+The result: soldiers learn to cooperate with teammates who have **different instincts**. A scout trained on mine drills learns "my assault teammate will push toward cannons — I should clear the path." The assault soldier learns "my scout teammate navigates safely — I should follow and provide firepower."
+
+This heterogeneous cooperation is where the truly emergent, surprising squad tactics come from. It's the core reason for individual brains.
+
+### Training Drills (Not Your Base)
+
+Training happens in **dedicated drills** — pre-designed scenarios that teach specific skills. Players do NOT train soldiers against their own base.
+
+- **Solo drills:** One soldier trains alone (mine navigation, cannon assault, pathfinding, etc.)
+- **Group drills:** 2+ soldiers train together, each with their own brain
+- All drills use **randomized layouts** to force generalization
+- Training costs gold per soldier per 1,000 episodes
+
+When a player raids another player's base, the raid is **one-shot** — no learning happens during the raid. The soldiers execute using their trained brains. This makes training quality the competitive differentiator.
