@@ -1,10 +1,10 @@
-// Build the 142-dimensional observation vector for a soldier.
-// 125 from egocentric 5x5 grid (5 channels) + 17 scalar features.
+// Build the 145-dimensional observation vector for a soldier.
+// 125 from egocentric 5x5 grid (5 channels) + 20 scalar features.
 
 import { Grid, SIZE } from '../sim/Grid.js';
 import { BUILDING_TYPES } from '../sim/Building.js';
 
-export const OBS_SIZE = 142;
+export const OBS_SIZE = 145;
 
 export function buildObservation(soldier, grid, soldiers, buildings, hq, shieldActive = true) {
   // 1. Egocentric 5x5 grid view (5 channels = 125 floats)
@@ -12,8 +12,8 @@ export function buildObservation(soldier, grid, soldiers, buildings, hq, shieldA
     soldier.x, soldier.y, soldier.facing, soldiers, buildings
   );
 
-  // 2. Scalar features (17 floats)
-  const scalars = new Float32Array(17);
+  // 2. Scalar features (20 floats)
+  const scalars = new Float32Array(20);
   const maxDist = Math.sqrt(SIZE * SIZE + SIZE * SIZE);
   const facingAngle = (1 - soldier.facing) * Math.PI / 2;
 
@@ -102,6 +102,32 @@ export function buildObservation(soldier, grid, soldiers, buildings, hq, shieldA
     scalars[14] = 1.0; // no mines = max distance (safe)
     scalars[15] = 0;
     scalars[16] = 0;
+  }
+
+  // Nearest alive ally: distance + relative angle compass (sin/cos)
+  // Critical for multi-agent coordination — lets each soldier know where teammates are
+  let nearestAllyDist = Infinity;
+  let nearestAlly = null;
+  for (const s of soldiers) {
+    if (s === soldier || !s.alive || s.team !== 0) continue;
+    const d = Grid.euclidean(soldier.x, soldier.y, s.x, s.y);
+    if (d < nearestAllyDist) {
+      nearestAllyDist = d;
+      nearestAlly = s;
+    }
+  }
+  if (nearestAlly) {
+    scalars[17] = nearestAllyDist / maxDist;
+    const dx = nearestAlly.x - soldier.x;
+    const dy = nearestAlly.y - soldier.y;
+    const worldAngle = Math.atan2(dy, dx);
+    const relAngle = worldAngle - facingAngle;
+    scalars[18] = Math.sin(relAngle);
+    scalars[19] = Math.cos(relAngle);
+  } else {
+    scalars[17] = 1.0; // no allies = max distance (solo)
+    scalars[18] = 0;
+    scalars[19] = 0;
   }
 
   // Concatenate into single observation

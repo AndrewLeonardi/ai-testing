@@ -96,6 +96,26 @@ export function computeReward(soldier, prevState, grid, buildings, soldiers, hq,
     }
   }
 
+  // --- Multi-agent: Clustering penalty ---
+  // Discourages soldiers from stacking on the same path (shared weights → identical behavior).
+  // Stronger penalty when overlapping, fades at radius edge.
+  for (const ally of soldiers) {
+    if (ally === soldier || !ally.alive || ally.team !== 0) continue;
+    const dist = Grid.euclidean(soldier.x, soldier.y, ally.x, ally.y);
+    if (dist < R.clusterRadius) {
+      reward += R.clusterPenalty * (1 - dist / R.clusterRadius);
+    }
+  }
+
+  // --- Multi-agent: Ally death penalty ---
+  // Small negative when a teammate dies this tick (encourages protective play).
+  for (const ally of soldiers) {
+    if (ally === soldier || ally.team !== 0) continue;
+    if (!ally.alive && ally.damageTakenThisStep > 0) {
+      reward += R.allyDeathPenalty;
+    }
+  }
+
   // --- Terminal rewards ---
   if (episodeDone) {
     if (won) {

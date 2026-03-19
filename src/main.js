@@ -35,6 +35,7 @@ const HORIZON = BALANCE.PPO.horizon; // PPO update every N steps
 let stepsSinceUpdate = 0;
 let lastEntropy = 0;
 let currentLevel = 1;
+let numTeamSoldiers = 1; // tracks team=0 soldier count for reward normalization
 
 // --- Init ---
 function init() {
@@ -242,8 +243,9 @@ function resetEpisode() {
   soldiers = scenario.soldiers;
   buildings = scenario.buildings;
   hq = scenario.hq;
-  sim = new SimLoop(grid, soldiers, buildings, hq);
+  sim = new SimLoop(grid, soldiers, buildings, hq, levelDef.maxSteps);
   episodeReward = 0;
+  numTeamSoldiers = soldiers.filter(s => s.team === 0).length;
 
   if (renderer) {
     renderer.clear();
@@ -257,7 +259,7 @@ function endEpisode(won) {
   winHistory.push(won ? 1 : 0);
   if (winHistory.length > 100) winHistory.shift();
 
-  metricsChart.addPoint(episodeReward, lastEntropy);
+  metricsChart.addPoint(episodeReward / numTeamSoldiers, lastEntropy);
 }
 
 // --- Transfer Validation ---
@@ -279,7 +281,7 @@ function runTransferValidation() {
     const vSoldiers = scenario.soldiers;
     const vBuildings = scenario.buildings;
     const vHq = scenario.hq;
-    const vSim = new SimLoop(vGrid, vSoldiers, vBuildings, vHq);
+    const vSim = new SimLoop(vGrid, vSoldiers, vBuildings, vHq, levelDef.maxSteps);
 
     // Run episode with frozen weights (inference only, no learning)
     while (!vSim.done) {
@@ -456,7 +458,8 @@ function gameLoop(timestamp) {
     episode,
     step: sim.step,
     totalSteps,
-    episodeReward,
+    episodeReward: episodeReward / numTeamSoldiers,
+    soldiers: numTeamSoldiers,
     winRate,
     entropy: lastEntropy,
     policyLoss: agent.lastMetrics.policyLoss,

@@ -34,6 +34,7 @@ export class Dashboard {
       <div class="stat-row"><span class="label">Episode</span><span class="value" id="stat-episode">0</span></div>
       <div class="stat-row"><span class="label">Step</span><span class="value" id="stat-step">0</span></div>
       <div class="stat-row"><span class="label">Total Steps</span><span class="value" id="stat-total-steps">0</span></div>
+      <div class="stat-row"><span class="label">Soldiers</span><span class="value" id="stat-soldiers">1</span></div>
       <div class="stat-row"><span class="label">Ep Reward</span><span class="value" id="stat-reward">0.00</span></div>
       <div class="stat-row"><span class="label">Win Rate (100)</span><span class="value" id="stat-winrate">0%</span></div>
       <div class="stat-row"><span class="label">Entropy</span><span class="value" id="stat-entropy">-</span></div>
@@ -104,6 +105,7 @@ export class Dashboard {
         }
       }
     }
+    if (stats.soldiers !== undefined) set('stat-soldiers', stats.soldiers);
     set('stat-episode', stats.episode);
     set('stat-step', stats.step);
     set('stat-total-steps', stats.totalSteps);

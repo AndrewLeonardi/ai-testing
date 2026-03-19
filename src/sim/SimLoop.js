@@ -8,14 +8,14 @@ import { CELL_EMPTY, CELL_SHIELD, CELL_MINE, SIZE } from './Grid.js';
 import { BALANCE } from '../game/Balance.js';
 
 export class SimLoop {
-  constructor(grid, soldiers, buildings, hq) {
+  constructor(grid, soldiers, buildings, hq, maxSteps = null) {
     this.grid = grid;
     this.soldiers = soldiers;
     this.buildings = buildings;
     this.hq = hq;
     this.step = 0;
     const hasCannons = buildings.some(b => b.buildingType === BUILDING_TYPES.CANNON);
-    this.maxSteps = hasCannons ? BALANCE.SCENARIOS.maxStepsCombat : BALANCE.SCENARIOS.maxStepsSimple;
+    this.maxSteps = maxSteps || (hasCannons ? BALANCE.SCENARIOS.maxStepsCombat : BALANCE.SCENARIOS.maxStepsSimple);
     this.done = false;
     this.won = false;
     this.shieldActive = hasCannons;

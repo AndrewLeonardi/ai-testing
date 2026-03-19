@@ -245,6 +245,10 @@ export const BALANCE = deepFreeze({
     killedPenalty: -3.0,
     timeoutPenalty: -2.0,
     mineProximityThreshold: 5,
+    // Multi-agent coordination
+    clusterRadius: 3,           // distance threshold for clustering penalty
+    clusterPenalty: -0.05,      // penalty per nearby ally (discourages stacking)
+    allyDeathPenalty: -1.0,     // negative when a teammate dies this tick
   },
 
   // --- PPO Hyperparameters ---
@@ -266,6 +270,7 @@ export const BALANCE = deepFreeze({
   SCENARIOS: {
     maxStepsSimple: 200,   // levels without cannons
     maxStepsCombat: 500,   // levels with cannons
+    maxStepsSquad: 600,    // multi-soldier coordination levels
   },
 });
 

@@ -14,6 +14,8 @@ export const LEVELS = [
   { id: 2, name: 'Cannons + Shield', factory: createLevel2, maxSteps: 500, equipment: ['MINE', 'CANNON', 'SHIELD'] },
   { id: 3, name: 'Walls',            factory: createLevel3, maxSteps: 400, equipment: ['MINE', 'CANNON', 'SHIELD', 'WALL'] },
   { id: 4, name: 'Mine Walls',       factory: createLevel4, maxSteps: 400, equipment: ['MINE', 'CANNON', 'SHIELD', 'WALL'] },
+  { id: 5, name: 'Squad Basics',     factory: createLevel5, maxSteps: 600, equipment: ['MINE', 'CANNON', 'SHIELD'] },
+  { id: 6, name: 'Full Squad',       factory: createLevel6, maxSteps: 600, equipment: ['MINE', 'CANNON', 'SHIELD', 'WALL'] },
 ];
 
 // --- Mine Randomization ---
@@ -261,6 +263,108 @@ export function createLevel4() {
   const soldier = new Soldier(16, 2, 0, DIR_N);
   soldiers.push(soldier);
   grid.placeSoldier(soldier.id, soldier.x, soldier.y);
+
+  return { grid, soldiers, buildings, hq };
+}
+
+// --- Level 5: Squad Basics (2 soldiers) ---
+// First multi-agent level. Level 2 difficulty (mines + cannons + shield) but with
+// 2 soldiers spread apart. Isolates the new variable: coordination.
+export function createLevel5() {
+  resetEntityIds();
+  const grid = new Grid();
+  const soldiers = [];
+  const buildings = [];
+
+  // HQ at (16, 24)
+  const hq = new Building(16, 24, BUILDING_TYPES.HQ);
+  buildings.push(hq);
+  grid.setCell(16, 24, CELL_BUILDING);
+
+  // Cannons
+  const cannon1 = new Building(16, 18, BUILDING_TYPES.CANNON);
+  buildings.push(cannon1);
+  grid.setCell(16, 18, CELL_BUILDING);
+
+  const cannon2 = new Building(14, 18, BUILDING_TYPES.CANNON);
+  buildings.push(cannon2);
+  grid.setCell(14, 18, CELL_BUILDING);
+
+  // Shield line at y=20
+  for (let x = 10; x <= 22; x++) {
+    grid.setCell(x, 20, CELL_SHIELD);
+  }
+
+  // Randomized mines in approach corridor
+  randomizeMines(grid, 7, 16, 6, 16, 12, 20);
+
+  // TWO soldiers spread apart — different egocentric views from the start
+  const s1 = new Soldier(14, 2, 0, DIR_N);
+  const s2 = new Soldier(18, 2, 0, DIR_N);
+  soldiers.push(s1, s2);
+  grid.placeSoldier(s1.id, s1.x, s1.y);
+  grid.placeSoldier(s2.id, s2.x, s2.y);
+
+  return { grid, soldiers, buildings, hq };
+}
+
+// --- Level 6: Full Squad (3 soldiers) ---
+// 3 soldiers against dense defenses: walls + mines + 3 cannons + shield.
+// Tests full squad coordination under pressure.
+export function createLevel6() {
+  resetEntityIds();
+  const grid = new Grid();
+  const soldiers = [];
+  const buildings = [];
+
+  // HQ at (16, 26)
+  const hq = new Building(16, 26, BUILDING_TYPES.HQ);
+  buildings.push(hq);
+  grid.setCell(16, 26, CELL_BUILDING);
+
+  // 3 cannons — spread out to force multi-directional assault
+  const cannon1 = new Building(16, 20, BUILDING_TYPES.CANNON);
+  buildings.push(cannon1);
+  grid.setCell(16, 20, CELL_BUILDING);
+
+  const cannon2 = new Building(12, 20, BUILDING_TYPES.CANNON);
+  buildings.push(cannon2);
+  grid.setCell(12, 20, CELL_BUILDING);
+
+  const cannon3 = new Building(20, 20, BUILDING_TYPES.CANNON);
+  buildings.push(cannon3);
+  grid.setCell(20, 20, CELL_BUILDING);
+
+  // Shield line at y=22
+  for (let x = 8; x <= 24; x++) {
+    grid.setCell(x, 22, CELL_SHIELD);
+  }
+
+  // Wall row at y=10 with randomized gap
+  const wallGap = 12 + Math.floor(Math.random() * 6);
+  for (let x = 10; x <= 22; x++) {
+    if (x >= wallGap && x <= wallGap + 1) continue;
+    grid.setCell(x, 10, CELL_WALL);
+  }
+
+  // Wall row at y=16 — gap on opposite side to force zigzag
+  const gap2Side = (wallGap <= 14) ? 17 + Math.floor(Math.random() * 3) : 11 + Math.floor(Math.random() * 3);
+  for (let x = 10; x <= 22; x++) {
+    if (x >= gap2Side && x <= gap2Side + 1) continue;
+    grid.setCell(x, 16, CELL_WALL);
+  }
+
+  // Dense mines — 10+ across the approach
+  randomizeMines(grid, 10, 16, 4, 18, 10, 22);
+
+  // THREE soldiers spread wide
+  const s1 = new Soldier(12, 2, 0, DIR_N);
+  const s2 = new Soldier(16, 2, 0, DIR_N);
+  const s3 = new Soldier(20, 2, 0, DIR_N);
+  soldiers.push(s1, s2, s3);
+  grid.placeSoldier(s1.id, s1.x, s1.y);
+  grid.placeSoldier(s2.id, s2.x, s2.y);
+  grid.placeSoldier(s3.id, s3.x, s3.y);
 
   return { grid, soldiers, buildings, hq };
 }
