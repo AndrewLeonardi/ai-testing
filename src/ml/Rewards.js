@@ -1,7 +1,7 @@
 // Layered reward shaping for soldier training.
 // Two-phase: destroy cannons (shield up) → destroy HQ (shield down).
 
-import { Grid } from '../sim/Grid.js';
+import { Grid, CELL_MINE } from '../sim/Grid.js';
 import { hasTargetInLine } from '../sim/Combat.js';
 import { ACTIONS } from '../sim/Soldier.js';
 import { BUILDING_TYPES } from '../sim/Building.js';
@@ -71,6 +71,22 @@ export function computeReward(soldier, prevState, grid, buildings, soldiers, hq,
     }
   }
 
+  // --- Mine proximity penalty ---
+  // Small penalty for moving TOWARD a mine (uses mine compass data)
+  if (prevState) {
+    const nearestMine = grid.findNearestMine(soldier.x, soldier.y);
+    if (nearestMine && nearestMine.dist < 5) {
+      const prevMine = grid.findNearestMine(prevState.x, prevState.y);
+      if (prevMine) {
+        const approachDelta = prevMine.dist - nearestMine.dist;
+        if (approachDelta > 0) {
+          // Moving toward a mine within danger range — penalize
+          reward -= approachDelta * 0.3;
+        }
+      }
+    }
+  }
+
   // --- Cannon destruction bonus ---
   for (const b of buildings) {
     if (b.buildingType === BUILDING_TYPES.CANNON && b.destroyedThisStep) {
@@ -83,7 +99,11 @@ export function computeReward(soldier, prevState, grid, buildings, soldiers, hq,
     if (won) {
       reward += 20.0;
     } else if (!soldier.alive) {
-      reward -= 3.0;
+      if (soldier.killedByMine) {
+        reward -= 5.0; // stronger signal: mines are avoidable, learn to dodge them
+      } else {
+        reward -= 3.0;
+      }
     } else {
       reward -= 2.0;
     }

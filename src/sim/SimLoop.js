@@ -48,6 +48,7 @@ export class SimLoop {
       if (this.grid.getCell(s.x, s.y) === CELL_MINE) {
         const mineDamage = 999; // instant kill — forces real avoidance, no tanking
         s.takeDamage(mineDamage);
+        if (!s.alive) s.killedByMine = true;
         this.grid.setCell(s.x, s.y, CELL_EMPTY);
         this.events.push({ type: 'mine_explode', x: s.x, y: s.y, target: s });
       }

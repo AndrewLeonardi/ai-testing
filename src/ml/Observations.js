@@ -1,10 +1,10 @@
-// Build the 139-dimensional observation vector for a soldier.
-// 125 from egocentric 5x5 grid (5 channels) + 14 scalar features.
+// Build the 142-dimensional observation vector for a soldier.
+// 125 from egocentric 5x5 grid (5 channels) + 17 scalar features.
 
 import { Grid } from '../sim/Grid.js';
 import { BUILDING_TYPES } from '../sim/Building.js';
 
-export const OBS_SIZE = 139;
+export const OBS_SIZE = 142;
 
 export function buildObservation(soldier, grid, soldiers, buildings, hq, shieldActive = true) {
   // 1. Egocentric 5x5 grid view (5 channels = 125 floats)
@@ -12,8 +12,8 @@ export function buildObservation(soldier, grid, soldiers, buildings, hq, shieldA
     soldier.x, soldier.y, soldier.facing, soldiers, buildings
   );
 
-  // 2. Scalar features (14 floats)
-  const scalars = new Float32Array(14);
+  // 2. Scalar features (17 floats)
+  const scalars = new Float32Array(17);
   const maxDist = Math.sqrt(32 * 32 + 32 * 32);
   const facingAngle = (1 - soldier.facing) * Math.PI / 2;
 
@@ -86,6 +86,23 @@ export function buildObservation(soldier, grid, soldiers, buildings, hq, shieldA
 
   // Shoot cooldown (normalized) - helps agent time shots
   scalars[13] = soldier.shootCooldown / soldier.maxShootCooldown;
+
+  // Nearest mine: distance + relative angle compass (sin/cos)
+  // Gives early warning beyond the 2-tile 5x5 view range
+  const nearestMine = grid.findNearestMine(soldier.x, soldier.y);
+  if (nearestMine) {
+    scalars[14] = nearestMine.dist / maxDist;
+    const dx = nearestMine.x - soldier.x;
+    const dy = nearestMine.y - soldier.y;
+    const worldAngle = Math.atan2(dy, dx);
+    const relAngle = worldAngle - facingAngle;
+    scalars[15] = Math.sin(relAngle);
+    scalars[16] = Math.cos(relAngle);
+  } else {
+    scalars[14] = 1.0; // no mines = max distance (safe)
+    scalars[15] = 0;
+    scalars[16] = 0;
+  }
 
   // Concatenate into single observation
   const obs = new Float32Array(OBS_SIZE);

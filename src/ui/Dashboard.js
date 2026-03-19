@@ -11,6 +11,7 @@ export class Dashboard {
     this.onResetTraining = null;
     this.onGraduate = null;
     this.onRerollWeights = null;
+    this.onValidateTransfer = null;
 
     this._build();
   }
@@ -28,6 +29,7 @@ export class Dashboard {
       <button class="btn" id="btn-reset-training" style="width:100%">RESET TRAINING</button>
       <button class="btn" id="btn-reroll" style="width:100%;background:#3a2a1a;color:#ffab40;border-color:#ffab40">REROLL WEIGHTS</button>
       <button class="btn" id="btn-graduate" style="width:100%;background:#1a3a1a;color:#76ff03;border-color:#76ff03">GRADUATE TO LEVEL 2</button>
+      <button class="btn" id="btn-validate" style="width:100%;background:#1a1a3a;color:#40c4ff;border-color:#40c4ff">VALIDATE TRANSFER</button>
       <div class="stat-row"><span class="label">Level</span><span class="value" id="stat-level">1</span></div>
       <div class="stat-row"><span class="label">Episode</span><span class="value" id="stat-episode">0</span></div>
       <div class="stat-row"><span class="label">Step</span><span class="value" id="stat-step">0</span></div>
@@ -71,6 +73,10 @@ export class Dashboard {
     this.container.querySelector('#btn-graduate').addEventListener('click', () => {
       if (this.onGraduate) this.onGraduate();
     });
+
+    this.container.querySelector('#btn-validate').addEventListener('click', () => {
+      if (this.onValidateTransfer) this.onValidateTransfer();
+    });
   }
 
   updateStats(stats) {
@@ -78,7 +84,26 @@ export class Dashboard {
       const el = this.container.querySelector('#' + id);
       if (el) el.textContent = val;
     };
-    if (stats.level !== undefined) set('stat-level', stats.level);
+    if (stats.level !== undefined) {
+      const levelLabel = stats.levelName
+        ? `${stats.level} — ${stats.levelName}`
+        : stats.level;
+      set('stat-level', levelLabel);
+
+      const gradBtn = this.container.querySelector('#btn-graduate');
+      if (gradBtn) {
+        const maxLevel = stats.maxLevel || 3;
+        if (stats.level >= maxLevel) {
+          gradBtn.textContent = `LEVEL ${stats.level} (MAX)`;
+          gradBtn.disabled = true;
+          gradBtn.style.opacity = '0.5';
+        } else {
+          gradBtn.textContent = `GRADUATE TO LEVEL ${stats.level + 1}`;
+          gradBtn.disabled = false;
+          gradBtn.style.opacity = '1';
+        }
+      }
+    }
     set('stat-episode', stats.episode);
     set('stat-step', stats.step);
     set('stat-total-steps', stats.totalSteps);

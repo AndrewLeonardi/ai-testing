@@ -32,16 +32,22 @@ BUILD BASE → TRAIN SOLDIERS → ATTACK ENEMY BASES → DEFEND YOUR BASE → RE
 ```
 
 ### Offense (AI Training)
-- Player watches their squad train against practice scenarios
+- Player builds their own base, then trains soldiers against IT
 - Soldiers visibly get smarter over episodes — the fun is WATCHING this happen
-- Trained soldiers are sent to attack other players' bases
-- Higher-level soldiers handle more complex defenses
+- Trained soldiers are then sent to attack OTHER PLAYERS' bases (not their own)
+- **The AI must GENERALIZE.** It trains on YOUR base but fights on UNKNOWN layouts
+- This is the core skill gap: build a base that teaches your soldiers transferable skills
+- A player who builds a diverse, challenging training base produces smarter soldiers
+- Training costs gold — limited budget forces strategic training decisions
 
 ### Defense (Base Building)
 - Player places buildings on a grid to create a defensive layout
 - Each building forces the AI to learn a specific skill
-- Good base design = harder for attackers = higher defense rating
+- Good base design serves DUAL purpose:
+  1. **Defense:** harder for enemy soldiers to crack = higher defense rating
+  2. **Training ground:** teaches YOUR soldiers skills that transfer to enemy bases
 - Bases are attacked asynchronously by other players' trained soldiers
+- The tension: a base optimized for defense might not be the best training ground, and vice versa
 
 ---
 
@@ -152,9 +158,54 @@ This is an ENGINE designed to support years of play. Every system is built to ex
 ### What We Don't Build Until We Need It
 
 - Social features (clans, chat) — bolt on later
-- Monetization — cosmetics and training speed boosts, never pay-to-win
+- Monetization — gold coin IAP (buys time, not power), cosmetics later, never pay-to-win
 - Complex terrain — add elevation/water as late-game unlocks
 - Tournaments — emerge naturally from matchmaking infrastructure
+
+---
+
+## Economy: Gold Coins
+
+Gold coins are the universal currency. Every player action that matters costs gold, and every achievement earns gold. The economy is what ties offense and defense together — you can't build a great base AND train elite soldiers without earning (or buying) enough gold. This forces strategic spending decisions.
+
+### How You EARN Gold
+
+| Source | Amount | Notes |
+|--------|--------|-------|
+| **Passive gold mine** | X/hour | Every base has a gold mine that accumulates over time. Always ticking, even offline. |
+| **Successful raid** | Variable | Attack another player's base and win. Payout scales with their defense rating. |
+| **Defense victory** | Small bonus | Your base repels an attacker. Smaller reward than raiding — offense is the active play. |
+| **Purchase (IAP)** | Tiered packs | Real money → gold. Convenience, not power — everything is earnable through play. |
+
+### How You SPEND Gold
+
+| Action | Cost | Notes |
+|--------|------|-------|
+| **Train soldiers** | Per training session | More episodes = more gold. You're paying for compute time. |
+| **Buy equipment/weapons** | Per item | Unlock new soldier abilities (grenades, sprint, shields). Permanent once bought. |
+| **Build defenses** | Per building | Place walls, cannons, mortars, etc. Each has a gold cost. |
+| **Upgrade buildings** | Per upgrade | Increase HP, damage, range of existing buildings. |
+| **Upgrade gold mine** | Tiered | Increases passive generation rate. Long-term investment. |
+
+### Balance Principles
+
+1. **Passive income alone should NOT sustain a competitive player.** You must raid to keep up. This drives the core loop.
+2. **Training costs scale with soldier count and episode budget.** Bigger squads and longer training = more gold. Prevents everyone from having max-trained armies.
+3. **Defense is cheaper per unit of effectiveness than offense.** Matches the 1.15x vs 1.12x scaling — defense has the edge, which means attackers need to be SMARTER, not just richer.
+4. **IAP buys time, not power.** A paying player gets gold faster. A free player gets there eventually. No exclusive items behind paywalls.
+5. **Gold sinks prevent inflation.** Training, upgrades, and building replacement (after raids damage your base) keep gold flowing OUT. The mine keeps it flowing IN. The raid economy circulates it between players.
+
+### Economy ↔ Balance Connection
+
+The gold economy is the BALANCING LEVER for the entire game. If offense is too strong → raise training costs. If defense is too strong → lower building costs so more players can build up. If progression is too fast → reduce raid payouts. Every balance knob in the game ultimately maps to a gold flow rate.
+
+```
+GOLD MINE (passive) ──→ GOLD POOL ──→ TRAINING (offense)
+                            ↑    └──→ BUILDINGS (defense)
+                            │    └──→ EQUIPMENT (upgrades)
+RAID REWARDS ───────────────┘
+IAP ────────────────────────┘
+```
 
 ---
 

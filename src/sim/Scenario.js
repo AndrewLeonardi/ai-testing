@@ -1,13 +1,80 @@
 // Scenario builder: creates grid layouts and spawns entities.
 // Curriculum: start simple, add complexity as the agent masters each level.
+// Mine positions are RANDOMIZED each episode to force generalization, not memorization.
 
-import { Grid, CELL_WALL, CELL_BUILDING, CELL_SHIELD, CELL_MINE, DIR_N } from './Grid.js';
+import { Grid, SIZE, CELL_WALL, CELL_BUILDING, CELL_SHIELD, CELL_MINE, CELL_EMPTY, DIR_N } from './Grid.js';
 import { Soldier } from './Soldier.js';
 import { Building, BUILDING_TYPES } from './Building.js';
 import { resetEntityIds } from './Entity.js';
 
-// Level 1: Mines only. No cannons, no shield.
-// Soldier must learn: navigate to HQ while avoiding mines.
+// --- Level Registry ---
+// Each level teaches a new equipment type. Skills must TRANSFER to unknown layouts.
+export const LEVELS = [
+  { id: 1, name: 'Mines',            factory: createLevel1, maxSteps: 200, equipment: ['MINE'] },
+  { id: 2, name: 'Cannons + Shield', factory: createLevel2, maxSteps: 500, equipment: ['MINE', 'CANNON', 'SHIELD'] },
+  { id: 3, name: 'Walls',            factory: createLevel3, maxSteps: 400, equipment: ['MINE', 'CANNON', 'SHIELD', 'WALL'] },
+  { id: 4, name: 'Mine Walls',       factory: createLevel4, maxSteps: 400, equipment: ['MINE', 'CANNON', 'SHIELD', 'WALL'] },
+];
+
+// --- Mine Randomization ---
+// Places mines randomly within a corridor, guaranteeing:
+// - At least 2 on the direct path (column centerX)
+// - At least 1 on each side of center
+// - All within the specified band
+function randomizeMines(grid, count, centerX, yMin, yMax, xMin, xMax) {
+  const positions = [];
+  const used = new Set();
+  const key = (x, y) => `${x},${y}`;
+
+  function placeOne(x, y) {
+    const k = key(x, y);
+    if (used.has(k)) return false;
+    if (grid.getCell(x, y) !== CELL_EMPTY) return false;
+    used.add(k);
+    positions.push([x, y]);
+    grid.setCell(x, y, CELL_MINE);
+    return true;
+  }
+
+  function randInt(lo, hi) {
+    return lo + Math.floor(Math.random() * (hi - lo + 1));
+  }
+
+  // Guarantee: 2 mines on the direct path (x = centerX)
+  let placed = 0;
+  while (placed < 2) {
+    const y = randInt(yMin, yMax);
+    if (placeOne(centerX, y)) placed++;
+  }
+
+  // Guarantee: 1 mine left of center
+  while (positions.filter(([x]) => x < centerX).length < 1) {
+    const x = randInt(xMin, centerX - 1);
+    const y = randInt(yMin, yMax);
+    placeOne(x, y);
+  }
+
+  // Guarantee: 1 mine right of center
+  while (positions.filter(([x]) => x > centerX).length < 1) {
+    const x = randInt(centerX + 1, xMax);
+    const y = randInt(yMin, yMax);
+    placeOne(x, y);
+  }
+
+  // Fill remaining mines randomly in the band
+  let attempts = 0;
+  while (positions.length < count && attempts < 200) {
+    const x = randInt(xMin, xMax);
+    const y = randInt(yMin, yMax);
+    placeOne(x, y);
+    attempts++;
+  }
+
+  return positions;
+}
+
+// --- Level 1: Mines only ---
+// Soldier must learn: navigate to HQ while avoiding RANDOMIZED mine positions.
 export function createLevel1() {
   resetEntityIds();
   const grid = new Grid();
@@ -19,18 +86,9 @@ export function createLevel1() {
   buildings.push(hq);
   grid.setCell(16, 18, CELL_BUILDING);
 
-  // Mines in the direct path — soldier MUST deviate to survive
-  const minePositions = [
-    [16, 8],  // directly in path
-    [16, 12], // directly in path again
-    [15, 10], // slightly left
-    [17, 10], // slightly right
-    [15, 14], // left approach
-    [17, 14], // right approach
-  ];
-  for (const [mx, my] of minePositions) {
-    grid.setCell(mx, my, CELL_MINE);
-  }
+  // Randomized mines in the approach corridor
+  // Band: y=6 to y=16, x=12 to x=20 (centered on the direct path)
+  randomizeMines(grid, 6, 16, 6, 16, 12, 20);
 
   // Soldier at (16, 2) facing north
   const soldier = new Soldier(16, 2, 0, DIR_N);
@@ -40,8 +98,8 @@ export function createLevel1() {
   return { grid, soldiers, buildings, hq };
 }
 
-// Level 2: Full scenario — mines + cannons + shield.
-// Soldier must learn: avoid mines → destroy cannons → shield drops → destroy HQ.
+// --- Level 2: Mines + Cannons + Shield ---
+// Soldier must learn: avoid randomized mines → destroy cannons → shield drops → destroy HQ.
 export function createLevel2() {
   resetEntityIds();
   const grid = new Grid();
@@ -53,7 +111,7 @@ export function createLevel2() {
   buildings.push(hq);
   grid.setCell(16, 24, CELL_BUILDING);
 
-  // Cannons
+  // Cannons (fixed positions — cannon combat is a separate skill to isolate)
   const cannon1 = new Building(16, 18, BUILDING_TYPES.CANNON);
   buildings.push(cannon1);
   grid.setCell(16, 18, CELL_BUILDING);
@@ -67,19 +125,9 @@ export function createLevel2() {
     grid.setCell(x, 20, CELL_SHIELD);
   }
 
-  // Mines in approach path
-  const minePositions = [
-    [16, 10],
-    [15, 12],
-    [17, 11],
-    [14, 14],
-    [16, 14],
-    [13, 10],
-    [18, 13],
-  ];
-  for (const [mx, my] of minePositions) {
-    grid.setCell(mx, my, CELL_MINE);
-  }
+  // Randomized mines in approach corridor (before cannon line)
+  // Band: y=6 to y=16, x=12 to x=20
+  randomizeMines(grid, 7, 16, 6, 16, 12, 20);
 
   // Soldier at (16, 2)
   const soldier = new Soldier(16, 2, 0, DIR_N);
@@ -89,9 +137,184 @@ export function createLevel2() {
   return { grid, soldiers, buildings, hq };
 }
 
-// Default scenario — currently Level 1 for curriculum training
-export function createMVPScenario() {
-  return createLevel1();
+// --- Level 3: Mines + Cannons + Shield + Walls ---
+// Soldier must learn: pathfind around walls while avoiding mines and engaging cannons.
+export function createLevel3() {
+  resetEntityIds();
+  const grid = new Grid();
+  const soldiers = [];
+  const buildings = [];
+
+  // HQ at (16, 26) — pushed back to make room for walls
+  const hq = new Building(16, 26, BUILDING_TYPES.HQ);
+  buildings.push(hq);
+  grid.setCell(16, 26, CELL_BUILDING);
+
+  // Cannons behind walls
+  const cannon1 = new Building(16, 20, BUILDING_TYPES.CANNON);
+  buildings.push(cannon1);
+  grid.setCell(16, 20, CELL_BUILDING);
+
+  const cannon2 = new Building(13, 20, BUILDING_TYPES.CANNON);
+  buildings.push(cannon2);
+  grid.setCell(13, 20, CELL_BUILDING);
+
+  // Shield line at y=22
+  for (let x = 9; x <= 23; x++) {
+    grid.setCell(x, 22, CELL_SHIELD);
+  }
+
+  // Wall row 1 at y=8 — gap position randomized (2-tile gap)
+  const gap1 = 12 + Math.floor(Math.random() * 6); // gap at x=12..17
+  for (let x = 10; x <= 22; x++) {
+    if (x >= gap1 && x <= gap1 + 1) continue; // gap
+    grid.setCell(x, 8, CELL_WALL);
+  }
+
+  // Wall row 2 at y=14 — gap on opposite side of row 1 to force zigzag
+  const gap2Side = (gap1 <= 14) ? 17 + Math.floor(Math.random() * 3) : 11 + Math.floor(Math.random() * 3);
+  for (let x = 10; x <= 22; x++) {
+    if (x >= gap2Side && x <= gap2Side + 1) continue; // gap
+    grid.setCell(x, 14, CELL_WALL);
+  }
+
+  // Randomized mines between walls and in approach
+  // Band: y=4 to y=18, x=10 to x=22 (wider area with walls)
+  randomizeMines(grid, 8, 16, 4, 18, 10, 22);
+
+  // Soldier at (16, 2)
+  const soldier = new Soldier(16, 2, 0, DIR_N);
+  soldiers.push(soldier);
+  grid.placeSoldier(soldier.id, soldier.x, soldier.y);
+
+  return { grid, soldiers, buildings, hq };
+}
+
+// --- Level 4: Mine Walls ---
+// Fixes the "always go right" problem. A dense mine wall blocks either the LEFT or RIGHT
+// side randomly each episode, forcing the soldier to learn BOTH directions.
+// Also includes walls + cannons + shield from Level 3.
+export function createLevel4() {
+  resetEntityIds();
+  const grid = new Grid();
+  const soldiers = [];
+  const buildings = [];
+
+  // HQ at (16, 26)
+  const hq = new Building(16, 26, BUILDING_TYPES.HQ);
+  buildings.push(hq);
+  grid.setCell(16, 26, CELL_BUILDING);
+
+  // Cannons
+  const cannon1 = new Building(16, 20, BUILDING_TYPES.CANNON);
+  buildings.push(cannon1);
+  grid.setCell(16, 20, CELL_BUILDING);
+
+  const cannon2 = new Building(13, 20, BUILDING_TYPES.CANNON);
+  buildings.push(cannon2);
+  grid.setCell(13, 20, CELL_BUILDING);
+
+  // Shield line at y=22
+  for (let x = 9; x <= 23; x++) {
+    grid.setCell(x, 22, CELL_SHIELD);
+  }
+
+  // Wall row at y=10 with randomized gap
+  const wallGap = 12 + Math.floor(Math.random() * 6);
+  for (let x = 10; x <= 22; x++) {
+    if (x >= wallGap && x <= wallGap + 1) continue;
+    grid.setCell(x, 10, CELL_WALL);
+  }
+
+  // THE KEY: Dense mine wall blocking one side
+  // Randomly choose LEFT or RIGHT side to block
+  const blockLeft = Math.random() < 0.5;
+
+  if (blockLeft) {
+    // Mine wall on the ENTIRE left side (x=0-15, y=4-8) — soldier MUST go right
+    for (let y = 4; y <= 8; y++) {
+      for (let x = 0; x <= 15; x++) {
+        if (grid.getCell(x, y) === CELL_EMPTY) {
+          grid.setCell(x, y, CELL_MINE);
+        }
+      }
+    }
+    // Leave right side open with a few scattered mines
+    randomizeMines(grid, 3, 19, 4, 8, 17, 22);
+  } else {
+    // Mine wall on the ENTIRE right side (x=17-31, y=4-8) — soldier MUST go left
+    for (let y = 4; y <= 8; y++) {
+      for (let x = 17; x <= 31; x++) {
+        if (grid.getCell(x, y) === CELL_EMPTY) {
+          grid.setCell(x, y, CELL_MINE);
+        }
+      }
+    }
+    // Leave left side open with a few scattered mines
+    randomizeMines(grid, 3, 13, 4, 8, 10, 15);
+  }
+
+  // A few mines in the mid-zone between wall and cannons
+  randomizeMines(grid, 4, 16, 12, 18, 10, 22);
+
+  // Soldier at (16, 2)
+  const soldier = new Soldier(16, 2, 0, DIR_N);
+  soldiers.push(soldier);
+  grid.placeSoldier(soldier.id, soldier.x, soldier.y);
+
+  return { grid, soldiers, buildings, hq };
+}
+
+// Create scenario from a player-designed base layout (for base editor)
+export function createFromLayout(layout) {
+  resetEntityIds();
+  const grid = new Grid();
+  const soldiers = [];
+  const buildings = [];
+
+  // Place HQ
+  const hq = new Building(layout.hq.x, layout.hq.y, BUILDING_TYPES.HQ);
+  buildings.push(hq);
+  grid.setCell(layout.hq.x, layout.hq.y, CELL_BUILDING);
+
+  // Place buildings
+  if (layout.cannons) {
+    for (const c of layout.cannons) {
+      const cannon = new Building(c.x, c.y, BUILDING_TYPES.CANNON);
+      buildings.push(cannon);
+      grid.setCell(c.x, c.y, CELL_BUILDING);
+    }
+  }
+
+  // Place walls
+  if (layout.walls) {
+    for (const [wx, wy] of layout.walls) {
+      grid.setCell(wx, wy, CELL_WALL);
+    }
+  }
+
+  // Place mines
+  if (layout.mines) {
+    for (const [mx, my] of layout.mines) {
+      grid.setCell(mx, my, CELL_MINE);
+    }
+  }
+
+  // Place shield line
+  if (layout.shield) {
+    for (const [sx, sy] of layout.shield) {
+      grid.setCell(sx, sy, CELL_SHIELD);
+    }
+  }
+
+  // Soldier at spawn
+  const spawnX = layout.spawn ? layout.spawn.x : 16;
+  const spawnY = layout.spawn ? layout.spawn.y : 2;
+  const soldier = new Soldier(spawnX, spawnY, 0, DIR_N);
+  soldiers.push(soldier);
+  grid.placeSoldier(soldier.id, soldier.x, soldier.y);
+
+  return { grid, soldiers, buildings, hq };
 }
 
 // Get the HQ from a building list

@@ -1,6 +1,6 @@
 // Main entry point: wires Simulation, ML, and Visualization together.
 
-import { createLevel1, createLevel2, getHQ } from './sim/Scenario.js';
+import { LEVELS, getHQ } from './sim/Scenario.js';
 import { SimLoop } from './sim/SimLoop.js';
 import { PPO } from './ml/PPO.js';
 import { buildObservation } from './ml/Observations.js';
@@ -28,8 +28,6 @@ const HORIZON = 128; // PPO update every N steps
 let stepsSinceUpdate = 0;
 let lastEntropy = 0;
 let currentLevel = 1;
-const AUTO_GRADUATE_WINRATE = 0.8; // auto-graduate at 80% win rate
-const AUTO_GRADUATE_MIN_EPISODES = 100; // need at least 100 episodes before auto-graduation
 
 // --- Init ---
 function init() {
@@ -77,13 +75,14 @@ function init() {
     metricsChart.entropyHistory = [];
     resetEpisode();
   };
+  dashboard.onValidateTransfer = () => { runTransferValidation(); };
 
   // Start game loop
   requestAnimationFrame(gameLoop);
 }
 
 function graduate() {
-  if (currentLevel >= 2) return; // already at max
+  if (currentLevel >= LEVELS.length) return; // already at max
   currentLevel++;
   // Keep the agent — weights transfer!
   // Reset episode tracking for new level
@@ -99,7 +98,8 @@ function graduate() {
 }
 
 function resetEpisode() {
-  const scenario = currentLevel === 1 ? createLevel1() : createLevel2();
+  const levelDef = LEVELS[currentLevel - 1];
+  const scenario = levelDef.factory();
   grid = scenario.grid;
   soldiers = scenario.soldiers;
   buildings = scenario.buildings;
@@ -120,6 +120,54 @@ function endEpisode(won) {
   if (winHistory.length > 100) winHistory.shift();
 
   metricsChart.addPoint(episodeReward, lastEntropy);
+}
+
+// --- Transfer Validation ---
+// Freezes weights, runs 100 episodes on fresh random layouts (no training).
+// Proves skill TRANSFER: did the agent learn "mine avoidance" or "this specific path"?
+function runTransferValidation() {
+  const savedPaused = paused;
+  paused = true;
+
+  const VALIDATION_EPISODES = 100;
+  let wins = 0;
+
+  const levelDef = LEVELS[currentLevel - 1];
+
+  for (let ep = 0; ep < VALIDATION_EPISODES; ep++) {
+    // Fresh random layout each episode
+    const scenario = levelDef.factory();
+    const vGrid = scenario.grid;
+    const vSoldiers = scenario.soldiers;
+    const vBuildings = scenario.buildings;
+    const vHq = scenario.hq;
+    const vSim = new SimLoop(vGrid, vSoldiers, vBuildings, vHq);
+
+    // Run episode with frozen weights (inference only, no learning)
+    while (!vSim.done) {
+      const actions = [];
+      for (const s of vSoldiers) {
+        if (!s.alive || s.team !== 0) {
+          actions.push(7); // STAY
+          continue;
+        }
+        const obs = buildObservation(s, vGrid, vSoldiers, vBuildings, vHq, vSim.shieldActive);
+        const result = agent.selectAction(obs);
+        actions.push(result.action);
+      }
+      vSim.tick(actions);
+    }
+
+    if (vSim.won) wins++;
+  }
+
+  const transferRate = (wins / VALIDATION_EPISODES * 100).toFixed(1);
+  const status = wins / VALIDATION_EPISODES >= 0.7 ? 'PASS' : (wins / VALIDATION_EPISODES >= 0.5 ? 'PARTIAL' : 'FAIL');
+
+  console.log(`Transfer Validation: ${wins}/${VALIDATION_EPISODES} wins (${transferRate}%) — ${status}`);
+  alert(`Transfer Validation (Level ${currentLevel})\n\n${wins}/${VALIDATION_EPISODES} wins (${transferRate}%)\n\nStatus: ${status}\n\n${status === 'PASS' ? 'Skill transfer PROVEN! Ready to graduate.' : status === 'PARTIAL' ? 'Partial transfer. More training may help.' : 'Agent is memorizing, not generalizing. Investigate.'}`);
+
+  paused = savedPaused;
 }
 
 // --- Game Loop ---
@@ -230,13 +278,12 @@ function gameLoop(timestamp) {
     ? winHistory.reduce((a, b) => a + b, 0) / winHistory.length
     : 0;
 
-  // Auto-graduate check
-  if (currentLevel < 2 && winHistory.length >= AUTO_GRADUATE_MIN_EPISODES && winRate >= AUTO_GRADUATE_WINRATE) {
-    graduate();
-  }
+  // No auto-graduation — player validates transfer and graduates manually
 
   dashboard.updateStats({
     level: currentLevel,
+    maxLevel: LEVELS.length,
+    levelName: LEVELS[currentLevel - 1].name,
     episode,
     step: sim.step,
     totalSteps,

@@ -38,6 +38,7 @@ export class Soldier extends Entity {
     this.damageTakenThisStep = 0;
     this.shotHitThisStep = false;
     this.shotMissedThisStep = false;
+    this.killedByMine = false;
   }
 
   resetStepTracking() {

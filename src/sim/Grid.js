@@ -152,6 +152,26 @@ export class Grid {
     return view;
   }
 
+  // Find nearest mine position on the grid
+  findNearestMine(x, y) {
+    let bestDist = Infinity;
+    let bestX = -1, bestY = -1;
+    for (let cy = 0; cy < SIZE; cy++) {
+      for (let cx = 0; cx < SIZE; cx++) {
+        if (this.cells[cy * SIZE + cx] === CELL_MINE) {
+          const d = Math.sqrt((cx - x) ** 2 + (cy - y) ** 2);
+          if (d < bestDist) {
+            bestDist = d;
+            bestX = cx;
+            bestY = cy;
+          }
+        }
+      }
+    }
+    if (bestX === -1) return null;
+    return { x: bestX, y: bestY, dist: bestDist };
+  }
+
   // Manhattan distance
   static distance(x0, y0, x1, y1) {
     return Math.abs(x1 - x0) + Math.abs(y1 - y0);

@@ -76,11 +76,14 @@ This is where DEFENSE comes alive. Players place buildings on a grid.
 - Budget system: X points to spend, each building has a cost
 - Files: New `src/ui/BaseEditor.js`, modify `Renderer.js` for edit mode
 
-**3.2 — Train against custom bases**
+**3.2 — Train soldiers (on YOUR base)**
 - Player builds a base, clicks "TRAIN"
-- AI soldiers train against THAT layout
-- Player watches the AI learn to beat their base
-- This IS the core game loop
+- AI soldiers train against the player's OWN base layout
+- Player watches the AI learn — this is where the fun is
+- CRITICAL: soldiers then ATTACK OTHER PLAYERS' bases, NOT the one they trained on
+- The AI must GENERALIZE from training — it won't get to practice on the target base
+- This is the key tension: train soldiers that are smart enough to handle UNKNOWN layouts
+- Training budget is limited by gold coins — you can't train forever
 
 **3.3 — Save/load bases**
 - Serialize grid state as JSON
