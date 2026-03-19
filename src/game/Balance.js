@@ -100,27 +100,20 @@ export const BALANCE = deepFreeze({
   },
 
   // --- Soldier Classes ---
-  // Each class has stat modifiers applied to SOLDIER base stats.
-  // recommendedDrills: UI hint only, not a constraint — any class can train on any drill.
-  // status: 'planned' until implementation. All classes use the same neural network shape.
+  // Two classes with stat multipliers applied to SOLDIER base stats.
+  // Any class can train on any drill. All classes use the same neural network shape.
   SOLDIER_CLASSES: {
-    ASSAULT: {
-      hpMultiplier: 1.2, damageMultiplier: 1.0, visionMultiplier: 1.0,
-      recruitCost: 200, tier: 'starter', status: 'planned',
-      description: 'Frontline fighter. Extra HP for sustained combat.',
+    SOLDIER: {
+      hpMultiplier: 1.0, damageMultiplier: 1.0,
+      recruitCost: 200, status: 'implemented',
+      description: 'Standard infantry. Balanced HP and damage.',
+      recommendedDrills: ['MINE_FIELD', 'SHIELD_SIEGE'],
+    },
+    ARMORED: {
+      hpMultiplier: 1.5, damageMultiplier: 0.6,
+      recruitCost: 300, status: 'implemented',
+      description: 'Heavy armor. Takes hits, but weaker offense.',
       recommendedDrills: ['CANNON_ALLEY', 'SHIELD_SIEGE'],
-    },
-    SCOUT: {
-      hpMultiplier: 1.0, damageMultiplier: 1.0, visionMultiplier: 1.4,
-      recruitCost: 200, tier: 'starter', status: 'planned',
-      description: 'Pathfinder. Extended vision range for mine detection.',
-      recommendedDrills: ['MINE_FIELD', 'THE_MAZE'],
-    },
-    SUPPORT: {
-      hpMultiplier: 0.8, damageMultiplier: 0.9, visionMultiplier: 1.0,
-      recruitCost: 300, tier: 'advanced', status: 'planned',
-      description: 'Team enabler. Lower stats, but future heal/buff abilities.',
-      recommendedDrills: ['SQUAD_BASICS', 'FLANKING_DRILL'],
     },
   },
 

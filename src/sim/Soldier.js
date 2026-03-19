@@ -24,15 +24,19 @@ export const ACTION_NAMES = [
 export const NUM_ACTIONS = 8;
 
 export class Soldier extends Entity {
-  constructor(x, y, team, facing = DIR_N) {
-    super(x, y, BALANCE.SOLDIER.hp, team);
+  // classStats: optional { hpMultiplier, damageMultiplier } from Balance.SOLDIER_CLASSES
+  constructor(x, y, team, facing = DIR_N, classStats = null) {
+    const hpMult = classStats ? classStats.hpMultiplier : 1.0;
+    const dmgMult = classStats ? classStats.damageMultiplier : 1.0;
+    const hp = Math.round(BALANCE.SOLDIER.hp * hpMult);
+    super(x, y, hp, team);
     this.facing = facing;
     this.ducking = false;
     this.shootCooldown = 0;
     this.maxShootCooldown = BALANCE.SOLDIER.shootCooldown;
     this.ammo = BALANCE.SOLDIER.ammo;
     this.maxAmmo = BALANCE.SOLDIER.ammo;
-    this.damage = BALANCE.SOLDIER.damage;
+    this.damage = Math.round(BALANCE.SOLDIER.damage * dmgMult);
     this.range = BALANCE.SOLDIER.range;
     this.lastAction = -1;
     this.damageDealtThisStep = 0;

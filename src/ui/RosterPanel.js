@@ -3,6 +3,8 @@
 
 import { BALANCE } from '../game/Balance.js';
 
+const CLASS_COLORS = { SOLDIER: '#ffab40', ARMORED: '#40c4ff' };
+
 export class RosterPanel {
   constructor(container, roster) {
     this.container = container;
@@ -30,23 +32,32 @@ export class RosterPanel {
     slotsRow.innerHTML = `<span class="label">Roster</span><span class="value">${this.roster.size} / ${this.roster.maxSlots}</span>`;
     this.container.appendChild(slotsRow);
 
-    // Recruit section
+    // Recruit section — stat comparison cards
     const recruitHeader = document.createElement('div');
     recruitHeader.style.cssText = 'font-size:11px;color:#8bc34a;text-transform:uppercase;letter-spacing:1px;margin-top:8px';
     recruitHeader.textContent = 'Recruit';
     this.container.appendChild(recruitHeader);
 
     const recruitRow = document.createElement('div');
-    recruitRow.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap';
+    recruitRow.style.cssText = 'display:flex;gap:6px';
 
     for (const [className, classDef] of Object.entries(BALANCE.SOLDIER_CLASSES)) {
-      const btn = document.createElement('button');
-      btn.className = 'btn';
-      btn.style.cssText = 'flex:1;min-width:80px;font-size:10px;padding:6px 4px';
-      btn.textContent = `${className}\n(${classDef.recruitCost}g)`;
-      btn.title = classDef.description;
-      btn.addEventListener('click', () => this._recruit(className));
-      recruitRow.appendChild(btn);
+      const hp = Math.round(BALANCE.SOLDIER.hp * classDef.hpMultiplier);
+      const dmg = Math.round(BALANCE.SOLDIER.damage * classDef.damageMultiplier);
+      const color = CLASS_COLORS[className] || '#e0e0e0';
+
+      const card = document.createElement('button');
+      card.className = 'btn';
+      card.style.cssText = `flex:1;padding:8px 6px;font-size:10px;text-align:center;line-height:1.5;border-color:${color}`;
+      card.title = classDef.description;
+      card.innerHTML = `
+        <div style="font-weight:bold;color:${color};font-size:12px;margin-bottom:4px">${className}</div>
+        <div>HP: <b>${hp}</b></div>
+        <div>DMG: <b>${dmg}</b></div>
+        <div style="color:#ffd700;margin-top:4px">${classDef.recruitCost}g</div>
+      `;
+      card.addEventListener('click', () => this._recruit(className));
+      recruitRow.appendChild(card);
     }
     this.container.appendChild(recruitRow);
 
@@ -87,8 +98,10 @@ export class RosterPanel {
     const card = document.createElement('div');
     card.style.cssText = 'background:#0a2a0a;border:1px solid #2a5a2a;border-radius:4px;padding:8px;margin-top:4px';
 
-    const classColors = { ASSAULT: '#ff5252', SCOUT: '#40c4ff', SUPPORT: '#69f0ae' };
-    const color = classColors[soldier.soldierClass] || '#e0e0e0';
+    const color = CLASS_COLORS[soldier.soldierClass] || '#e0e0e0';
+    const classDef = BALANCE.SOLDIER_CLASSES[soldier.soldierClass];
+    const hp = classDef ? Math.round(BALANCE.SOLDIER.hp * classDef.hpMultiplier) : BALANCE.SOLDIER.hp;
+    const dmg = classDef ? Math.round(BALANCE.SOLDIER.damage * classDef.damageMultiplier) : BALANCE.SOLDIER.damage;
 
     // Header: name + class
     const header = document.createElement('div');
@@ -99,14 +112,14 @@ export class RosterPanel {
     `;
     card.appendChild(header);
 
-    // Stats
+    // Stats: class stats + training history
     const stats = document.createElement('div');
     stats.style.cssText = 'font-size:10px;color:#aaa;margin-bottom:6px';
     const ep = soldier.totalEpisodes;
     const drillList = Object.entries(soldier.drillHistory)
       .map(([d, n]) => `${d}: ${n}`)
       .join(', ') || 'none';
-    stats.textContent = `Episodes: ${ep} | Drills: ${drillList}`;
+    stats.innerHTML = `HP: ${hp} | DMG: ${dmg} | Episodes: ${ep}<br>Drills: ${drillList}`;
     card.appendChild(stats);
 
     // Drill selector + Train button
@@ -118,13 +131,11 @@ export class RosterPanel {
     select.style.cssText = 'flex:1;font-size:10px;padding:4px';
 
     for (const [drillName, drillDef] of Object.entries(BALANCE.DRILLS)) {
-      if (drillDef.type === 'group') continue; // solo drills only in roster panel
+      if (drillDef.type === 'group') continue;
       if (drillDef.minLevel > this.roster.playerLevel) continue;
       const opt = document.createElement('option');
       opt.value = drillName;
       opt.textContent = drillName.replace(/_/g, ' ');
-      // Pre-select recommended drill
-      const classDef = BALANCE.SOLDIER_CLASSES[soldier.soldierClass];
       if (classDef && classDef.recommendedDrills && classDef.recommendedDrills[0] === drillName) {
         opt.selected = true;
       }
@@ -172,7 +183,6 @@ export class RosterPanel {
     }
   }
 
-  // Refresh the panel (call after training completes, etc.)
   refresh() {
     this._build();
   }

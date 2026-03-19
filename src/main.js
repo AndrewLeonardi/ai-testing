@@ -187,12 +187,15 @@ function enterDrillMode(soldierId, drillName) {
   const infoEl = document.createElement('div');
   infoEl.id = 'drill-soldier-info';
   infoEl.style.cssText = 'text-align:center;padding:4px 0;font-size:12px;border-bottom:1px solid #2a5a2a;margin-bottom:4px';
-  const classColors = { ASSAULT: '#ff5252', SCOUT: '#40c4ff', SUPPORT: '#69f0ae' };
+  const classColors = { SOLDIER: '#ffab40', ARMORED: '#40c4ff' };
   const color = classColors[trainingSoldierRecord.soldierClass] || '#e0e0e0';
+  const cs = trainingSoldierRecord.classStats;
+  const hp = cs ? Math.round(BALANCE.SOLDIER.hp * cs.hpMultiplier) : BALANCE.SOLDIER.hp;
+  const dmg = cs ? Math.round(BALANCE.SOLDIER.damage * cs.damageMultiplier) : BALANCE.SOLDIER.damage;
   infoEl.innerHTML = `
     <span style="color:${color};font-weight:bold">${trainingSoldierRecord.name}</span>
     <span style="color:#aaa;font-size:10px">(${trainingSoldierRecord.soldierClass})</span><br>
-    <span style="color:#8bc34a;font-size:10px">Drill: ${drillName.replace(/_/g, ' ')}</span>
+    <span style="color:#8bc34a;font-size:10px">Drill: ${drillName.replace(/_/g, ' ')} | HP:${hp} DMG:${dmg}</span>
   `;
   dashboardEl.insertBefore(infoEl, document.getElementById('controls'));
 
@@ -223,6 +226,21 @@ function resetDrillEpisode() {
   soldiers = scenario.soldiers;
   buildings = scenario.buildings;
   hq = scenario.hq;
+
+  // Apply class stat multipliers to team=0 soldiers
+  if (trainingSoldierRecord) {
+    const classStats = trainingSoldierRecord.classStats;
+    if (classStats) {
+      for (const s of soldiers) {
+        if (s.team !== 0) continue;
+        const newHp = Math.round(BALANCE.SOLDIER.hp * classStats.hpMultiplier);
+        s.hp = newHp;
+        s.maxHp = newHp;
+        s.damage = Math.round(BALANCE.SOLDIER.damage * classStats.damageMultiplier);
+      }
+    }
+  }
+
   sim = new SimLoop(grid, soldiers, buildings, hq, drillLevelDef.maxSteps);
   episodeReward = 0;
   numTeamSoldiers = soldiers.filter(s => s.team === 0).length;

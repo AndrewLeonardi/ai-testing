@@ -181,7 +181,9 @@ export class Roster {
       this.playerLevel = data.playerLevel || 1;
       this.gold = data.gold ?? 500;
       nextSoldierId = data.nextSoldierId || 1;
-      this.soldiers = (data.soldiers || []).map(s => SoldierRecord.deserialize(s));
+      this.soldiers = (data.soldiers || [])
+        .filter(s => BALANCE.SOLDIER_CLASSES[s.soldierClass]) // drop soldiers with old/invalid classes
+        .map(s => SoldierRecord.deserialize(s));
     } catch (e) {
       console.warn('Roster load failed, starting fresh:', e.message);
       this.soldiers = [];
