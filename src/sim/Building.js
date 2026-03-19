@@ -1,0 +1,66 @@
+// Building entity: HQ, Cannon, Wall.
+// Cannons use stochastic targeting (weighted by proximity).
+
+import { Entity } from './Entity.js';
+import { Grid } from './Grid.js';
+
+export const BUILDING_TYPES = {
+  HQ: 'HQ',
+  CANNON: 'CANNON',
+  WALL: 'WALL',
+};
+
+export class Building extends Entity {
+  constructor(x, y, type) {
+    const hpMap = { HQ: 200, CANNON: 80, WALL: 120 };
+    super(x, y, hpMap[type] || 100, 1); // team 1 = defender
+    this.buildingType = type;
+    this.range = type === BUILDING_TYPES.CANNON ? 8 : 0;
+    this.damage = type === BUILDING_TYPES.CANNON ? 15 : 0;
+    this.fireRate = 3; // ticks between shots
+    this.fireCooldown = 0;
+    this.currentTarget = null;
+    this.firedThisStep = false;
+  }
+
+  // Cannon AI: pick a target and shoot
+  tick(grid, soldiers) {
+    this.firedThisStep = false;
+    if (this.buildingType !== BUILDING_TYPES.CANNON) return null;
+    if (!this.alive) return null;
+
+    if (this.fireCooldown > 0) {
+      this.fireCooldown--;
+      return null;
+    }
+
+    // Find all visible enemy soldiers in range
+    const targets = [];
+    for (const s of soldiers) {
+      if (!s.alive || s.team === this.team) continue;
+      const dist = Grid.euclidean(this.x, this.y, s.x, s.y);
+      if (dist <= this.range && grid.lineOfSight(this.x, this.y, s.x, s.y)) {
+        targets.push({ soldier: s, dist });
+      }
+    }
+
+    if (targets.length === 0) return null;
+
+    // Stochastic targeting: weight by inverse distance (closer = more likely)
+    const weights = targets.map(t => 1 / (t.dist + 0.5));
+    const totalWeight = weights.reduce((a, b) => a + b, 0);
+    let r = Math.random() * totalWeight;
+    let chosen = targets[0].soldier;
+    for (let i = 0; i < targets.length; i++) {
+      r -= weights[i];
+      if (r <= 0) { chosen = targets[i].soldier; break; }
+    }
+
+    // Fire!
+    this.fireCooldown = this.fireRate;
+    this.currentTarget = chosen;
+    this.firedThisStep = true;
+    chosen.takeDamage(this.damage);
+    return chosen;
+  }
+}
