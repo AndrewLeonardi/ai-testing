@@ -184,4 +184,40 @@ export class Grid {
   static euclidean(x0, y0, x1, y1) {
     return Math.sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2);
   }
+
+  // BFS path validation for base editor.
+  // Returns { reachable, mineOnly } where:
+  //   reachable = any path exists (mines are walkable but deadly)
+  //   mineOnly  = path exists but every route goes through at least one mine
+  static bfsPathExists(cells, fromX, fromY, toX, toY) {
+    const dirs = [[0,1],[0,-1],[1,0],[-1,0]];
+
+    function bfs(blockMines) {
+      const visited = new Uint8Array(SIZE * SIZE);
+      const queue = [[fromX, fromY]];
+      visited[fromY * SIZE + fromX] = 1;
+      while (queue.length > 0) {
+        const [cx, cy] = queue.shift();
+        if (cx === toX && cy === toY) return true;
+        for (const [dx, dy] of dirs) {
+          const nx = cx + dx, ny = cy + dy;
+          if (nx < 0 || nx >= SIZE || ny < 0 || ny >= SIZE) continue;
+          if (visited[ny * SIZE + nx]) continue;
+          const cell = cells[ny * SIZE + nx];
+          // Allow reaching the destination cell (HQ is a building)
+          const isTarget = (nx === toX && ny === toY);
+          if (!isTarget && (cell === CELL_WALL || cell === CELL_BUILDING || cell === CELL_SHIELD)) continue;
+          if (blockMines && cell === CELL_MINE) continue;
+          visited[ny * SIZE + nx] = 1;
+          queue.push([nx, ny]);
+        }
+      }
+      return false;
+    }
+
+    const reachable = bfs(false);
+    if (!reachable) return { reachable: false, mineOnly: false };
+    const safePath = bfs(true);
+    return { reachable: true, mineOnly: !safePath };
+  }
 }

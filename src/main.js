@@ -1,6 +1,6 @@
 // Main entry point: wires Simulation, ML, and Visualization together.
 
-import { LEVELS, getHQ } from './sim/Scenario.js';
+import { LEVELS, getHQ, createFromLayout } from './sim/Scenario.js';
 import { SimLoop } from './sim/SimLoop.js';
 import { PPO } from './ml/PPO.js';
 import { buildObservation } from './ml/Observations.js';
@@ -8,6 +8,7 @@ import { computeReward } from './ml/Rewards.js';
 import { Renderer } from './viz/Renderer.js';
 import { Interpolator } from './viz/Interpolator.js';
 import { Dashboard } from './ui/Dashboard.js';
+import { BaseEditor } from './ui/BaseEditor.js';
 import { MetricsChart } from './ui/MetricsChart.js';
 import { StatusBar } from './ui/StatusBar.js';
 import { BALANCE } from './game/Balance.js';
@@ -17,6 +18,11 @@ let sim, grid, soldiers, buildings, hq;
 let agent;
 let renderer, interpolator;
 let dashboard, metricsChart, statusBar;
+let editor = null;
+
+// Mode: 'train' | 'edit' | 'test'
+let mode = 'train';
+let testLayout = null; // layout being tested
 
 // Training stats
 let episode = 0;
@@ -78,8 +84,139 @@ function init() {
   };
   dashboard.onValidateTransfer = () => { runTransferValidation(); };
 
+  // Mode toggle button — lives in #dashboard above controls
+  const modeBtn = document.createElement('button');
+  modeBtn.id = 'btn-mode-toggle';
+  modeBtn.className = 'btn';
+  modeBtn.style.cssText = 'width:100%;background:#1a2a3a;color:#ff9800;border-color:#ff9800;font-size:14px;padding:10px;margin-bottom:8px';
+  modeBtn.textContent = 'EDIT BASE';
+  modeBtn.addEventListener('click', () => {
+    if (mode === 'train') enterEditMode();
+    else if (mode === 'edit') exitEditMode();
+  });
+  const dashboardEl = document.getElementById('dashboard');
+  dashboardEl.insertBefore(modeBtn, document.getElementById('controls'));
+
   // Start game loop
   requestAnimationFrame(gameLoop);
+}
+
+// --- Mode switching ---
+function enterEditMode() {
+  mode = 'edit';
+  paused = true;
+  renderer.clear();
+
+  // Hide metrics and status during edit
+  document.getElementById('metrics').style.display = 'none';
+  document.getElementById('status').style.display = 'none';
+
+  const modeBtn = document.getElementById('btn-mode-toggle');
+  modeBtn.textContent = 'BACK TO TRAINING';
+  modeBtn.style.background = '#2a5a2a';
+  modeBtn.style.color = '#8bc34a';
+  modeBtn.style.borderColor = '#4caf50';
+
+  const controlsEl = document.getElementById('controls');
+  editor = new BaseEditor(controlsEl, renderer, onTestLayout, exitEditMode);
+}
+
+function exitEditMode() {
+  mode = 'train';
+  if (editor) {
+    editor.dispose();
+    editor = null;
+  }
+  renderer.clear();
+
+  // Restore metrics and status
+  document.getElementById('metrics').style.display = '';
+  document.getElementById('status').style.display = '';
+
+  const modeBtn = document.getElementById('btn-mode-toggle');
+  modeBtn.textContent = 'EDIT BASE';
+  modeBtn.style.background = '#1a2a3a';
+  modeBtn.style.color = '#ff9800';
+  modeBtn.style.borderColor = '#ff9800';
+
+  // Rebuild dashboard
+  const controlsEl = document.getElementById('controls');
+  dashboard = new Dashboard(controlsEl);
+  dashboard.onSpeedChange = (s) => { speed = s; };
+  dashboard.onPauseToggle = (p) => { paused = p; };
+  dashboard.onReset = () => { endEpisode(false); resetEpisode(); };
+  dashboard.onGraduate = () => { graduate(); };
+  dashboard.onRerollWeights = () => {
+    agent = new PPO();
+    winHistory = [];
+    stepsSinceUpdate = 0;
+    metricsChart.rewardHistory = [];
+    metricsChart.entropyHistory = [];
+    resetEpisode();
+  };
+  dashboard.onResetTraining = () => {
+    agent = new PPO();
+    episode = 0;
+    totalSteps = 0;
+    winHistory = [];
+    stepsSinceUpdate = 0;
+    currentLevel = 1;
+    metricsChart.rewardHistory = [];
+    metricsChart.entropyHistory = [];
+    resetEpisode();
+  };
+  dashboard.onValidateTransfer = () => { runTransferValidation(); };
+
+  paused = false;
+  resetEpisode();
+}
+
+function onTestLayout(layout) {
+  mode = 'test';
+  testLayout = layout;
+
+  // Hide the editor, show a minimal test UI
+  const controlsEl = document.getElementById('controls');
+  controlsEl.innerHTML = `
+    <div class="stat-row"><span class="label">Mode</span><span class="value">TESTING</span></div>
+    <div class="stat-row"><span class="label">Status</span><span class="value" id="test-status">Running...</span></div>
+    <div class="control-group">
+      <label>Speed: <span id="test-speed-label">1x</span></label>
+      <input type="range" id="test-speed-slider" min="0" max="4" step="1" value="0">
+    </div>
+    <button class="btn" id="btn-stop-test" style="width:100%;margin-top:12px">BACK TO EDITOR</button>
+  `;
+
+  const speedSteps = [1, 5, 20, 50, 100];
+  controlsEl.querySelector('#test-speed-slider').addEventListener('input', (e) => {
+    speed = speedSteps[parseInt(e.target.value)];
+    controlsEl.querySelector('#test-speed-label').textContent = speed + 'x';
+  });
+  speed = 1;
+
+  controlsEl.querySelector('#btn-stop-test').addEventListener('click', () => {
+    // Return to editor
+    mode = 'edit';
+    renderer.clear();
+    const controlsEl2 = document.getElementById('controls');
+    editor = new BaseEditor(controlsEl2, renderer, onTestLayout, exitEditMode);
+  });
+
+  // Setup scenario from layout
+  if (editor) { editor.dispose(); editor = null; }
+  renderer.clear();
+
+  const scenario = createFromLayout(layout);
+  grid = scenario.grid;
+  soldiers = scenario.soldiers;
+  buildings = scenario.buildings;
+  hq = scenario.hq;
+  sim = new SimLoop(grid, soldiers, buildings, hq);
+
+  renderer.initFromState(sim.getState());
+  interpolator = new Interpolator();
+  interpolator.pushState(sim.getState());
+  paused = false;
 }
 
 function graduate() {
@@ -180,12 +317,43 @@ function gameLoop(timestamp) {
   const dt = timestamp - lastTime;
   lastTime = timestamp;
 
+  if (mode === 'edit') {
+    // Editor handles its own rendering
+    return;
+  }
+
   if (paused) {
-    // Still render
     renderer.render();
     return;
   }
 
+  // Test mode: inference only, one episode
+  if (mode === 'test') {
+    const ticksThisFrame = speed;
+    for (let t = 0; t < ticksThisFrame; t++) {
+      if (sim.done) {
+        const statusEl = document.getElementById('test-status');
+        if (statusEl) statusEl.textContent = sim.won ? 'WIN!' : 'DEFEATED';
+        paused = true;
+        break;
+      }
+      const actions = [];
+      for (const s of soldiers) {
+        if (!s.alive || s.team !== 0) { actions.push(7); continue; }
+        const obs = buildObservation(s, grid, soldiers, buildings, hq, sim.shieldActive);
+        const result = agent.selectAction(obs);
+        actions.push(result.action);
+      }
+      sim.tick(actions);
+    }
+    const state = sim.getState();
+    interpolator.pushState(state);
+    renderer.update(state, 1);
+    renderer.render();
+    return;
+  }
+
+  // --- Training mode ---
   // Run simulation ticks based on speed
   const ticksThisFrame = speed;
   for (let t = 0; t < ticksThisFrame; t++) {

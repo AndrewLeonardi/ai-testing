@@ -15,6 +15,9 @@ export function createBuildingMesh(buildingState) {
     case 'WALL':
       createWall(group);
       break;
+    case 'SHIELD_GENERATOR':
+      createShieldGenerator(group);
+      break;
   }
 
   group.position.set(buildingState.x + 0.5, 0, buildingState.y + 0.5);
@@ -102,6 +105,22 @@ function createWall(group) {
   }
 
   group.userData.wallMat = wallMat;
+}
+
+function createShieldGenerator(group) {
+  // Glowing cyan pillar
+  const baseGeo = new THREE.CylinderGeometry(0.3, 0.35, 0.8, 8);
+  const baseMat = new THREE.MeshLambertMaterial({ color: 0x006666 });
+  const base = new THREE.Mesh(baseGeo, baseMat);
+  base.position.y = 0.4;
+  group.add(base);
+
+  // Energy core on top
+  const coreGeo = new THREE.SphereGeometry(0.2, 8, 8);
+  const coreMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.8 });
+  const core = new THREE.Mesh(coreGeo, coreMat);
+  core.position.y = 0.9;
+  group.add(core);
 }
 
 function addHPBar(group, height) {

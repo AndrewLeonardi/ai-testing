@@ -118,3 +118,68 @@ body {
 
 .hp-bar-fill.low { background: #f44336; }
 .hp-bar-fill.mid { background: #ff9800; }
+
+/* --- Base Editor --- */
+.editor-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.palette-btn {
+  font-size: 10px;
+  padding: 6px 8px;
+}
+
+.palette-btn.active {
+  background: #4caf50;
+  color: #1a1a2e;
+  font-weight: bold;
+}
+
+.editor-select {
+  width: 100%;
+  background: #1a3a1a;
+  color: #e0e0e0;
+  border: 1px solid #2a5a2a;
+  padding: 6px 8px;
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.editor-input {
+  background: #1a3a1a;
+  color: #e0e0e0;
+  border: 1px solid #2a5a2a;
+  padding: 6px 8px;
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.editor-budget {
+  background: #0a2a0a;
+  border: 1px solid #2a5a2a;
+  border-radius: 4px;
+  padding: 8px;
+}
+
+.editor-path-status {
+  padding: 8px;
+  font-size: 13px;
+  font-weight: bold;
+  text-align: center;
+  border: 1px solid #2a5a2a;
+  border-radius: 4px;
+}
+
+.path-ok { color: #4caf50; }
+.path-warning { color: #ff9800; }
+.path-blocked { color: #f44336; }
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+#game-canvas { cursor: default; }
+#game-canvas.editor-active { cursor: crosshair; }

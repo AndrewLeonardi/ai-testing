@@ -9,6 +9,7 @@ export const BUILDING_TYPES = {
   HQ: 'HQ',
   CANNON: 'CANNON',
   WALL: 'WALL',
+  SHIELD_GENERATOR: 'SHIELD_GENERATOR',
 };
 
 export class Building extends Entity {
@@ -17,6 +18,7 @@ export class Building extends Entity {
       HQ: BALANCE.BUILDINGS.HQ.hp,
       CANNON: BALANCE.BUILDINGS.CANNON.hp,
       WALL: BALANCE.BUILDINGS.WALL.hp,
+      SHIELD_GENERATOR: 1, // marker entity, no real HP (shield mechanic is grid-based)
     };
     const hp = hpMap[type];
     if (hp === undefined) throw new Error(`Unknown building type: ${type}`);

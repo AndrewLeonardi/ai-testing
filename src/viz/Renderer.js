@@ -207,6 +207,29 @@ export class Renderer {
     this.renderer.render(this.scene, this.camera);
   }
 
+  // Raycaster: convert mouse click to grid coordinates
+  getGroundIntersection(clientX, clientY) {
+    const rect = this.canvas.getBoundingClientRect();
+    const ndcX = ((clientX - rect.left) / rect.width) * 2 - 1;
+    const ndcY = -((clientY - rect.top) / rect.height) * 2 + 1;
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera);
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const intersection = new THREE.Vector3();
+    if (raycaster.ray.intersectPlane(plane, intersection)) {
+      const gridX = Math.floor(intersection.x);
+      const gridY = Math.floor(intersection.z);
+      if (gridX >= 0 && gridX < SIZE && gridY >= 0 && gridY < SIZE) {
+        return { gridX, gridY };
+      }
+    }
+    return null;
+  }
+
+  // Editor preview mesh management
+  addMesh(mesh) { this.scene.add(mesh); }
+  removeMesh(mesh) { this.scene.remove(mesh); }
+
   // Clear all meshes for reset
   clear() {
     for (const [, mesh] of this.soldierMeshes) this.scene.remove(mesh);
