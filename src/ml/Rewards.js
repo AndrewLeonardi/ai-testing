@@ -78,7 +78,7 @@ export function computeReward(soldier, prevState, grid, buildings, soldiers, hq,
   // --- Mine proximity penalty ---
   if (prevState) {
     const nearestMine = grid.findNearestMine(soldier.x, soldier.y);
-    if (nearestMine && nearestMine.dist < 5) {
+    if (nearestMine && nearestMine.dist < R.mineProximityThreshold) {
       const prevMine = grid.findNearestMine(prevState.x, prevState.y);
       if (prevMine) {
         const approachDelta = prevMine.dist - nearestMine.dist;

@@ -57,7 +57,7 @@ A new weapon is justified ONLY when:
 | Speed | 2 tiles/tick | Double normal speed |
 | Duration | 3 ticks | Then forced cooldown |
 | Cooldown | 10 ticks | Can't spam it |
-| Gold cost | TBD | Mid-tier unlock |
+| Gold cost | 600 | Mid-tier unlock |
 
 **Why it exists:** Sniper Tower (defense.md) creates kill lanes the AI can't cross at normal speed. Sprint lets soldiers dash through danger zones.
 
@@ -78,7 +78,7 @@ A new weapon is justified ONLY when:
 | Range | 6 tiles | Arc trajectory, ignores walls |
 | Ammo | 3 | Very limited |
 | Cooldown | 5 ticks | Slow reload |
-| Gold cost | TBD | High-tier unlock |
+| Gold cost | 1500 | High-tier unlock |
 
 **Why it exists:** Walls (defense.md) block rifle shots. Grenades arc OVER walls to hit buildings behind them.
 
@@ -98,7 +98,7 @@ A new weapon is justified ONLY when:
 | Absorb | 60 HP | Then breaks |
 | Duration | Until broken | No time limit |
 | Cooldown | Once per episode | One-time use |
-| Gold cost | TBD | High-tier unlock |
+| Gold cost | 1800 | High-tier unlock |
 
 **Why it exists:** Late-game bases with multiple damage sources (cannons + snipers + mortars) overwhelm raw HP. Shield lets a soldier tank one push.
 
@@ -118,7 +118,7 @@ A new weapon is justified ONLY when:
 | Heal | 50 HP | Instant self-heal |
 | Uses | 2 per episode | Limited |
 | Cooldown | 8 ticks | Between uses |
-| Gold cost | TBD | Mid-tier unlock |
+| Gold cost | 700 | Mid-tier unlock |
 
 **Why it exists:** Extended engagements against complex bases drain HP. Heal packs enable retreat-and-push tactics instead of YOLO rushes.
 

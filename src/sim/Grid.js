@@ -1,4 +1,7 @@
-// 32x32 grid world. Source of truth for positions, obstacles, LOS.
+// Grid world. Source of truth for positions, obstacles, LOS.
+// Grid size comes from Balance.js — single source of truth.
+
+import { BALANCE } from '../game/Balance.js';
 
 export const CELL_EMPTY = 0;
 export const CELL_WALL = 1;
@@ -6,7 +9,7 @@ export const CELL_BUILDING = 2;
 export const CELL_SHIELD = 3; // Force field - blocks movement & shots until cannons destroyed
 export const CELL_MINE = 4;   // Hidden mine - damages soldier on step, then consumed
 
-export const SIZE = 32;
+export const SIZE = BALANCE.GRID.SIZE;
 
 // Facing directions: 0=N(+y), 1=E(+x), 2=S(-y), 3=W(-x)
 export const DIR_N = 0, DIR_E = 1, DIR_S = 2, DIR_W = 3;

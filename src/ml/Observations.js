@@ -1,7 +1,7 @@
 // Build the 142-dimensional observation vector for a soldier.
 // 125 from egocentric 5x5 grid (5 channels) + 17 scalar features.
 
-import { Grid } from '../sim/Grid.js';
+import { Grid, SIZE } from '../sim/Grid.js';
 import { BUILDING_TYPES } from '../sim/Building.js';
 
 export const OBS_SIZE = 142;
@@ -14,7 +14,7 @@ export function buildObservation(soldier, grid, soldiers, buildings, hq, shieldA
 
   // 2. Scalar features (17 floats)
   const scalars = new Float32Array(17);
-  const maxDist = Math.sqrt(32 * 32 + 32 * 32);
+  const maxDist = Math.sqrt(SIZE * SIZE + SIZE * SIZE);
   const facingAngle = (1 - soldier.facing) * Math.PI / 2;
 
   // HP normalized

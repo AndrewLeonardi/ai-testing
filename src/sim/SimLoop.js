@@ -4,7 +4,7 @@
 import { resolveShot } from './Combat.js';
 import { ACTIONS } from './Soldier.js';
 import { BUILDING_TYPES } from './Building.js';
-import { CELL_EMPTY, CELL_SHIELD, CELL_MINE } from './Grid.js';
+import { CELL_EMPTY, CELL_SHIELD, CELL_MINE, SIZE } from './Grid.js';
 import { BALANCE } from '../game/Balance.js';
 
 export class SimLoop {
@@ -114,8 +114,8 @@ export class SimLoop {
       if (!cannonsAlive) {
         this.shieldActive = false;
         // Remove all shield cells from grid
-        for (let y = 0; y < 32; y++) {
-          for (let x = 0; x < 32; x++) {
+        for (let y = 0; y < SIZE; y++) {
+          for (let x = 0; x < SIZE; x++) {
             if (this.grid.getCell(x, y) === CELL_SHIELD) {
               this.grid.setCell(x, y, 0);
             }
@@ -143,8 +143,8 @@ export class SimLoop {
 
   _getMinePositions() {
     const mines = [];
-    for (let y = 0; y < 32; y++) {
-      for (let x = 0; x < 32; x++) {
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
         if (this.grid.getCell(x, y) === CELL_MINE) {
           mines.push({ x, y });
         }

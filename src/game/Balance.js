@@ -139,32 +139,32 @@ export const BALANCE = deepFreeze({
       { level: 1, unlocks: ['MINE'],
         buildBudget: 800,   maxBuildings: 10,
         passiveGoldPerHour: 50,  trainingCostPer1000: 100 },
-      // Level 2: Walls
-      { level: 2, unlocks: ['WALL'],
+      // Level 2: Cannons + Shield (matches curriculum: mines → combat → walls)
+      { level: 2, unlocks: ['CANNON', 'SHIELD_GENERATOR'],
         buildBudget: 1200,  maxBuildings: 14,
         passiveGoldPerHour: 60,  trainingCostPer1000: 115 },
-      // Level 3: Cannons + Shield
-      { level: 3, unlocks: ['CANNON', 'SHIELD_GENERATOR'],
+      // Level 3: Walls (pathfinding layers on top of combat skills)
+      { level: 3, unlocks: ['WALL'],
         buildBudget: 2000,  maxBuildings: 18,
         passiveGoldPerHour: 72,  trainingCostPer1000: 132 },
-      // Level 4: Sprint + Heal Pack
-      { level: 4, unlocks: ['SPRINT', 'HEAL_PACK'],
+      // Level 4: Sniper Tower + Sprint (paired: burst damage → dash counter)
+      { level: 4, unlocks: ['SNIPER_TOWER', 'SPRINT'],
         buildBudget: 2800,  maxBuildings: 22,
         passiveGoldPerHour: 86,  trainingCostPer1000: 152 },
-      // Level 5: Sniper Tower
-      { level: 5, unlocks: ['SNIPER_TOWER'],
+      // Level 5: Mortar + Grenade (paired: AoE defense → AoE offense counter)
+      { level: 5, unlocks: ['MORTAR', 'GRENADE'],
         buildBudget: 3800,  maxBuildings: 26,
         passiveGoldPerHour: 103, trainingCostPer1000: 175 },
-      // Level 6: Grenade
-      { level: 6, unlocks: ['GRENADE'],
+      // Level 6: Heal Station (pure AI challenge — no weapon counter needed)
+      { level: 6, unlocks: ['HEAL_STATION'],
         buildBudget: 5000,  maxBuildings: 30,
         passiveGoldPerHour: 124, trainingCostPer1000: 201 },
-      // Level 7: Mortar
-      { level: 7, unlocks: ['MORTAR'],
+      // Level 7: Personal Shield (offense tankiness for multi-threat bases)
+      { level: 7, unlocks: ['PERSONAL_SHIELD'],
         buildBudget: 6500,  maxBuildings: 34,
         passiveGoldPerHour: 149, trainingCostPer1000: 231 },
-      // Level 8: Personal Shield + Heal Station
-      { level: 8, unlocks: ['PERSONAL_SHIELD', 'HEAL_STATION'],
+      // Level 8: Heal Pack (sustain for dense compound bases)
+      { level: 8, unlocks: ['HEAL_PACK'],
         buildBudget: 8500,  maxBuildings: 38,
         passiveGoldPerHour: 179, trainingCostPer1000: 266 },
       // Level 9-15: Scaling with upgrades, higher tiers
@@ -244,6 +244,7 @@ export const BALANCE = deepFreeze({
     mineDeathPenalty: -5.0,
     killedPenalty: -3.0,
     timeoutPenalty: -2.0,
+    mineProximityThreshold: 5,
   },
 
   // --- PPO Hyperparameters ---

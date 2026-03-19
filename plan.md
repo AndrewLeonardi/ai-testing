@@ -37,14 +37,12 @@ Every row is a paired unlock. Defense gets a building, offense gets a counter-to
 
 The mine learning is inconsistent across random seeds. Before adding more complexity, make Level 1 rock-solid.
 
-**1.1 — Add mine compass to observations**
-- Add nearest mine distance + sin/cos direction as scalar features (like we have for cannons and HQ)
-- The agent currently can only see mines in its 5x5 view (2 tiles). A compass gives early warning
-- Files: `Observations.js` (add 3 scalars, OBS_SIZE 139 → 142), `Grid.js` (helper to find nearest mine)
+**1.1 — Add mine compass to observations** ✅ DONE
+- Added nearest mine distance + sin/cos direction as scalar features (scalars 14-16)
+- OBS_SIZE 139 → 142, mine compass implemented in `Observations.js`, `Grid.js`
 
-**1.2 — Tune mine death signal**
-- Add explicit mine death tracking (`soldier.killedByMine` flag)
-- Increase mine-specific death penalty in rewards (the general -3.0 isn't distinctive enough)
+**1.2 — Tune mine death signal** ✅ DONE
+- Added `soldier.killedByMine` flag and mine-specific death penalty (-5.0 vs general -3.0)
 - Files: `SimLoop.js`, `Soldier.js`, `Rewards.js`
 
 **1.3 — Validate consistency**

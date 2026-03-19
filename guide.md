@@ -14,7 +14,7 @@ OBSERVE → DECIDE → ACT → GET REWARD → LEARN → REPEAT
 
 **File: `src/ml/Observations.js`**
 
-Every tick, we build a 139-number vector that describes the world from the soldier's perspective. This is the neural network's ONLY input.
+Every tick, we build a 142-number vector that describes the world from the soldier's perspective. This is the neural network's ONLY input.
 
 ### The 5x5 Egocentric Grid (125 numbers)
 
@@ -32,7 +32,7 @@ This window has 5 channels (layers), each 25 numbers (5x5):
 
 **Why egocentric?** If we used absolute coordinates, the network would need to learn "go to (16, 18)" which is brittle. With egocentric view, the network learns "move toward the thing in front-left" which generalizes to any position.
 
-### Scalar Features (14 numbers)
+### Scalar Features (17 numbers)
 
 Beyond the local view, the soldier gets global context:
 
@@ -51,6 +51,9 @@ scalars[10] = sin(relative_angle_to_cannon) → Cannon compass: sin
 scalars[11] = cos(relative_angle_to_cannon) → Cannon compass: cos
 scalars[12] = alive_cannons / total_cannons → Fraction of cannons still alive
 scalars[13] = shoot_cooldown / max_cooldown → Can I shoot yet?
+scalars[14] = nearest_mine_dist / maxDist   → Mine compass: distance (0 to 1)
+scalars[15] = sin(relative_angle_to_mine)   → Mine compass: sin
+scalars[16] = cos(relative_angle_to_mine)   → Mine compass: cos
 ```
 
 **The compass trick (sin/cos encoding):** Instead of giving raw angles (which wrap around discontinuously at 360°→0°), we give sin and cos of the relative angle. This creates a smooth, continuous signal that the neural network can easily learn from. "Target is to my front-left" = specific sin/cos values regardless of absolute orientation.
@@ -59,17 +62,17 @@ scalars[13] = shoot_cooldown / max_cooldown → Can I shoot yet?
 
 **File: `src/ml/Network.js`**
 
-The 139-number observation goes into a feedforward neural network:
+The 142-number observation goes into a feedforward neural network:
 
 ```
-INPUT (139) → Hidden Layer 1 (64 neurons, ReLU) → Hidden Layer 2 (32 neurons, ReLU) → OUTPUT
+INPUT (142) → Hidden Layer 1 (64 neurons, ReLU) → Hidden Layer 2 (32 neurons, ReLU) → OUTPUT
 ```
 
 There are actually TWO networks:
 
 ### Policy Network (the "actor")
 ```
-139 → 64 → 32 → 8 (one per action) → softmax → probabilities
+142 → 64 → 32 → 8 (one per action) → softmax → probabilities
 ```
 Output: probability distribution over 8 actions. Example: `[0.02, 0.01, 0.05, 0.03, 0.60, 0.20, 0.05, 0.04]` means "60% chance of SHOOT, 20% chance of DUCK, etc."
 
@@ -77,7 +80,7 @@ The soldier SAMPLES from this distribution — it doesn't always pick the highes
 
 ### Value Network (the "critic")
 ```
-139 → 64 → 32 → 1 (single number)
+142 → 64 → 32 → 1 (single number)
 ```
 Output: estimated total future reward from this state. "How good is my current situation?" This helps the learning algorithm decide which actions were better than expected.
 
@@ -88,7 +91,7 @@ Each layer is a matrix multiplication + bias + activation:
 output = ReLU(weights × input + bias)
 ```
 
-- **Weights**: A matrix of numbers (e.g., 139×64 = 8,896 numbers for layer 1)
+- **Weights**: A matrix of numbers (e.g., 142×64 = 9,088 numbers for layer 1)
 - **Bias**: One number per output neuron
 - **ReLU**: `max(0, x)` — clips negative values to zero, adds non-linearity
 - **Softmax** (final policy layer): Converts raw scores to probabilities that sum to 1
@@ -257,7 +260,7 @@ This is exactly like human learning: you don't forget how to walk when you learn
 
 ### What Transfers
 
-The observation space is the SAME across levels (139 dimensions). Some features are zero on simpler levels (e.g., cannon compass is [0,0,0] on Level 1 because there are no cannons). When cannons appear in Level 2, those weights start getting gradient signal for the first time, and the agent learns what they mean.
+The observation space is the SAME across levels (142 dimensions). Some features are zero on simpler levels (e.g., cannon compass is [0,0,0] on Level 1 because there are no cannons). When cannons appear in Level 2, those weights start getting gradient signal for the first time, and the agent learns what they mean.
 
 ## Watching the Learning (What the Metrics Mean)
 

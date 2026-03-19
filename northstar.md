@@ -76,7 +76,7 @@ Each building is a teaching tool. The combination creates emergent complexity �
 | 1 | 1.00x | 1.00x |
 | 5 | 1.57x | 1.75x |
 | 10 | 3.11x | 4.05x |
-| 20 | 9.65x | 16.37x |
+| 15 | 5.47x | 8.14x |
 
 - Offense scales at **1.12x per level** (more soldiers, better stats, longer training)
 - Defense scales at **1.15x per level** (more buildings, higher HP, new building types)
@@ -115,12 +115,12 @@ Training difficulty maps directly to game progression. Each level introduces sce
 - Walls + cannons → learn to use cover
 - Mixed defenses → learn to adapt strategy per layout
 
-### Phase 3: Strategy (Levels 10-20)
+### Phase 3: Strategy (Levels 10-15)
 - Full squad (3-5 soldiers) → learn coordination
 - Complex bases → learn role specialization (tank, flanker, sniper)
 - High-level defenses → learn timing, distraction, sacrifice plays
 
-### Phase 4: Mastery (Level 20+)
+### Phase 4: Mastery (Level 15+ — future expansion)
 - Max-complexity bases with all building types
 - AI must discover novel strategies the designer didn't anticipate
 - This is where emergent behavior creates the magic moments

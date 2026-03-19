@@ -42,7 +42,7 @@ A new building is justified ONLY when:
 | Damage | 15 | Per shot |
 | Range | 8 tiles | Line-of-sight required |
 | Fire rate | Every 3 ticks | Stochastic targeting (distance-weighted) |
-| Gold cost | TBD | Low-mid tier |
+| Gold cost | 400 | Mid tier |
 
 **Role:** Active DPS defense. Damages soldiers as they approach. Primary threat in early-mid game.
 
@@ -63,7 +63,7 @@ A new building is justified ONLY when:
 |------|-------|-------|
 | HP | — | Indirect — drops when all cannons destroyed |
 | Effect | Force field blocks movement and shots | Horizontal line |
-| Gold cost | TBD | Mid tier (paired with cannons) |
+| Gold cost | 500 | Mid tier (paired with cannons) |
 
 **Role:** Creates multi-phase gameplay. Forces "destroy cannons FIRST, then push through to HQ." Without it, soldiers would just rush past cannons straight to HQ.
 
@@ -85,7 +85,7 @@ A new building is justified ONLY when:
 | HP | — | Consumed on trigger |
 | Damage | Instant kill | One-hit kill on contact |
 | Visibility | Only in 5x5 view (2 tiles) | Hard to see coming |
-| Gold cost | TBD | Cheap (expendable) |
+| Gold cost | 60 | Cheap (expendable) |
 
 **Role:** Area denial. Forces cautious pathing instead of beeline rushing. Punishes agents that haven't learned spatial awareness.
 
@@ -106,7 +106,7 @@ A new building is justified ONLY when:
 |------|-------|-------|
 | HP | 120 | Destructible (but expensive to shoot down) |
 | Effect | Blocks movement AND shots | Full obstruction |
-| Gold cost | TBD | Cheap (structural) |
+| Gold cost | 80 | Cheap (structural) |
 
 **Role:** Maze-building, channeling attackers into kill zones, protecting key buildings from direct fire.
 
@@ -131,7 +131,7 @@ A new building is justified ONLY when:
 | Damage | 40 | Per shot — massive single hits |
 | Range | 12 tiles | Longest range in game |
 | Fire rate | Every 6 ticks | Very slow — creates timing windows |
-| Gold cost | TBD | High tier |
+| Gold cost | 1000 | High tier |
 
 **Why it exists:** Current defense is all "constant DPS" (cannons). Sniper adds BURST damage with TIMING WINDOWS. The AI must learn to advance BETWEEN shots, not just tank through.
 
@@ -155,7 +155,7 @@ A new building is justified ONLY when:
 | Range | 10 tiles | Indirect fire (ignores walls) |
 | Fire rate | Every 8 ticks | Very slow, but devastating |
 | Telegraph | 3 ticks | Shows target zone BEFORE impact |
-| Gold cost | TBD | High tier |
+| Gold cost | 1200 | High tier |
 
 **Why it exists:** Punishes STANDING STILL and CLUSTERING. Current AI can learn to sit in one spot and shoot. Mortars force constant movement. In multi-agent, mortars punish soldiers that bunch up.
 
@@ -177,7 +177,7 @@ A new building is justified ONLY when:
 | HP | 50 | Low — it's a priority target |
 | Heal rate | 2 HP/tick | To buildings within range 4 |
 | Heal targets | Buildings only | Does NOT heal other heal stations |
-| Gold cost | TBD | Mid-high tier |
+| Gold cost | 900 | Mid-high tier |
 
 **Why it exists:** Creates target prioritization puzzles. If the AI just attacks the nearest cannon, the heal station keeps it alive. Forces the AI to identify and eliminate the HEALER first.
 
@@ -208,12 +208,17 @@ A new building is justified ONLY when:
 
 ## Base Building Budget
 
-| Player Level | Grid Size | Building Budget (Gold) | Max Buildings | Notes |
-|-------------|-----------|----------------------|---------------|-------|
-| 1-5 | 16x16 | 1,000 | ~8-12 | Basics: walls + mines + 1-2 cannons |
-| 5-10 | 32x32 | 3,000 | ~20-30 | Midgame: full cannon arrays, shield gens |
-| 10-20 | 48x48 | 8,000 | ~50-70 | Complex: sniper lanes, mortar zones, heal stations |
-| 20+ | 64x64 | 15,000+ | ~100+ | Fortress: everything, dense compound layouts |
+Current grid: 32x32. Grid scaling to larger sizes is a future feature (see northstar.md). All values from Balance.js:
+
+| Player Level | Building Budget (Gold) | Max Buildings | Notes |
+|-------------|----------------------|---------------|-------|
+| 1 | 800 | 10 | Mines only |
+| 2 | 1,200 | 14 | + Cannons, Shield Generator |
+| 3 | 2,000 | 18 | + Walls |
+| 4 | 2,800 | 22 | + Sniper Tower + Sprint |
+| 5 | 3,800 | 26 | + Mortar + Grenade |
+| 10 | 14,000 | 46 | Mid-game scaling |
+| 15 | 47,000 | 66 | Endgame |
 
 ---
 

@@ -24,9 +24,10 @@ const MAX_GRAD_NORM = BALANCE.PPO.maxGradNorm;
 export class PPO {
   constructor() {
     // Policy network: obs -> action probabilities
-    this.policy = new Network([OBS_SIZE, 64, 32, NUM_ACTIONS], 'softmax');
+    const layers = BALANCE.PPO.networkLayers;
+    this.policy = new Network([OBS_SIZE, ...layers, NUM_ACTIONS], 'softmax');
     // Value network: obs -> state value
-    this.value = new Network([OBS_SIZE, 64, 32, 1], 'linear');
+    this.value = new Network([OBS_SIZE, ...layers, 1], 'linear');
 
     this.policyOpt = new Adam(this.policy, BALANCE.PPO.learningRate);
     this.valueOpt = new Adam(this.value, BALANCE.PPO.learningRate);

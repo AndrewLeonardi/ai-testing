@@ -18,7 +18,9 @@ export class Building extends Entity {
       CANNON: BALANCE.BUILDINGS.CANNON.hp,
       WALL: BALANCE.BUILDINGS.WALL.hp,
     };
-    super(x, y, hpMap[type] || 100, 1); // team 1 = defender
+    const hp = hpMap[type];
+    if (hp === undefined) throw new Error(`Unknown building type: ${type}`);
+    super(x, y, hp, 1); // team 1 = defender
     this.buildingType = type;
     this.range = type === BUILDING_TYPES.CANNON ? BALANCE.BUILDINGS.CANNON.range : 0;
     this.damage = type === BUILDING_TYPES.CANNON ? BALANCE.BUILDINGS.CANNON.damage : 0;
