@@ -5,6 +5,22 @@ import { BALANCE } from '../game/Balance.js';
 
 const CLASS_COLORS = { SOLDIER: '#ffab40', ARMORED: '#40c4ff' };
 
+// Training rank based on total episodes
+const RANKS = [
+  { name: 'Recruit',    minEp: 0,     color: '#666',    icon: '○' },
+  { name: 'Trained',    minEp: 100,   color: '#8bc34a', icon: '●' },
+  { name: 'Veteran',    minEp: 500,   color: '#4caf50', icon: '★' },
+  { name: 'Elite',      minEp: 2000,  color: '#ff9800', icon: '★★' },
+  { name: 'Legendary',  minEp: 5000,  color: '#f44336', icon: '★★★' },
+];
+
+function getRank(totalEpisodes) {
+  for (let i = RANKS.length - 1; i >= 0; i--) {
+    if (totalEpisodes >= RANKS[i].minEp) return RANKS[i];
+  }
+  return RANKS[0];
+}
+
 export class RosterPanel {
   constructor(container, roster) {
     this.container = container;
@@ -133,10 +149,18 @@ export class RosterPanel {
     nameSpan.textContent = soldier.name;
     leftSide.appendChild(nameSpan);
     header.appendChild(leftSide);
+    const rightSide = document.createElement('div');
+    rightSide.style.cssText = 'display:flex;flex-direction:column;align-items:flex-end;gap:1px';
     const classSpan = document.createElement('span');
     classSpan.style.cssText = `font-size:10px;color:${color};opacity:0.7`;
     classSpan.textContent = soldier.soldierClass;
-    header.appendChild(classSpan);
+    rightSide.appendChild(classSpan);
+    const rank = getRank(soldier.totalEpisodes);
+    const rankSpan = document.createElement('span');
+    rankSpan.style.cssText = `font-size:9px;color:${rank.color};font-weight:bold`;
+    rankSpan.textContent = `${rank.icon} ${rank.name}`;
+    rightSide.appendChild(rankSpan);
+    header.appendChild(rightSide);
     card.appendChild(header);
 
     // Stats: class stats + training history
@@ -148,6 +172,29 @@ export class RosterPanel {
       .join(', ') || 'none';
     stats.innerHTML = `HP: ${hp} | DMG: ${dmg} | Episodes: ${ep}<br>Drills: ${drillList}`;
     card.appendChild(stats);
+
+    // Rank progress bar
+    const nextRankIdx = RANKS.findIndex(r => r.minEp > ep);
+    if (nextRankIdx > 0) {
+      const prevMin = RANKS[nextRankIdx - 1].minEp;
+      const nextMin = RANKS[nextRankIdx].minEp;
+      const progress = Math.min(1, (ep - prevMin) / (nextMin - prevMin));
+      const nextRank = RANKS[nextRankIdx];
+      const bar = document.createElement('div');
+      bar.style.cssText = 'margin-bottom:6px';
+      bar.innerHTML = `
+        <div style="font-size:8px;color:#666;margin-bottom:2px">Next: ${nextRank.icon} ${nextRank.name} (${nextMin - ep} ep)</div>
+        <div style="height:3px;background:#1a1a1a;border-radius:2px;overflow:hidden">
+          <div style="height:100%;width:${(progress * 100).toFixed(0)}%;background:${nextRank.color};border-radius:2px"></div>
+        </div>
+      `;
+      card.appendChild(bar);
+    } else if (nextRankIdx === -1 && ep >= RANKS[RANKS.length - 1].minEp) {
+      const maxBar = document.createElement('div');
+      maxBar.style.cssText = 'font-size:8px;color:#f44336;margin-bottom:6px;font-weight:bold';
+      maxBar.textContent = 'MAX RANK';
+      card.appendChild(maxBar);
+    }
 
     // Drill selector + Train button
     const drillRow = document.createElement('div');
