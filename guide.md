@@ -323,9 +323,9 @@ The observation space is the SAME across levels (145 dimensions). Some features 
 
 ### The Design Choice
 
-The current codebase includes a MAPPO prototype where all soldiers share one neural network (parameter sharing). This was a useful stepping stone for validating multi-agent simulation mechanics, but it is **not the target architecture**.
+The codebase includes both architectures: a legacy MAPPO prototype (parameter sharing) used for early multi-agent validation, and the **current production architecture** where every soldier has its own individual PPO brain.
 
-**The target: every soldier gets its own PPO brain.**
+**Current architecture: every soldier gets its own PPO brain.**
 
 ### Why Individual Brains
 
@@ -342,7 +342,7 @@ The game's core appeal is watching AI develop interesting, emergent strategy. Ho
 
 ### How It Works in Code
 
-**Shared brain (current prototype):**
+**Shared brain (legacy MAPPO prototype):**
 ```
 agent = new PPO();                    // ONE agent
 for (soldier of soldiers) {
@@ -353,20 +353,20 @@ for (soldier of soldiers) {
 agent.update();                       // One update trains all
 ```
 
-**Individual brains (target architecture):**
+**Individual brains (current architecture):**
 ```
 // Each soldier in the roster has its own PPO instance
-roster = [new PPO(), new PPO(), new PPO()];
-
-// During training drill, each soldier uses its own brain
+// Stored in roster records, persisted to localStorage
 for (let i = 0; i < squad.length; i++) {
   obs = buildObservation(squad[i].soldier);
-  action = roster[i].selectAction(obs);   // Each soldier's own brain
-  roster[i].store(obs, action, ...);      // Each soldier's own buffer
+  action = roster[i].brain.selectAction(obs);  // Each soldier's own brain
+  roster[i].brain.store(obs, action, ...);     // Each soldier's own buffer
 }
 
-// Each brain updates independently
-for (agent of roster) agent.update();
+// Each brain updates independently when its buffer is full
+for (record of roster) {
+  if (record.brain.bufferFull()) record.brain.update();
+}
 ```
 
 ### Group Training

@@ -89,40 +89,42 @@ Parameter sharing validated the multi-agent sim mechanics:
 
 **NOTE:** This phase proved multi-agent works but used shared brains. Phase 5 replaces this with individual brains — the target architecture for the game.
 
-### Phase 5: Individual Soldier Brains (NEXT)
+### Phase 5: Individual Soldier Brains
 
 This is the critical architecture shift. Replace the single shared PPO agent with per-soldier brains.
 
-**5.1 — Roster System**
+**5.1 — Roster System** ✅ DONE
 - Each soldier = its own PPO instance with saved weights
 - Roster stored in localStorage (later: server)
 - Recruit new soldiers (costs gold, starts with random weights)
 - Retire soldiers (frees roster slot)
 - Roster size scales with player level
-- Files: New `src/game/Roster.js`, modify `main.js`, `Balance.js`
+- Files: `src/game/Roster.js`, `main.js`, `Balance.js`
 
-**5.2 — Soldier Classes**
-- Define 2-3 classes in Balance.js (Assault, Scout, Support)
+**5.2 — Soldier Classes** ✅ DONE
+- 2 classes in Balance.js: SOLDIER (1.0x HP, 1.25x DMG) and ARMORED (1.5x HP, 0.75x DMG)
 - Classes provide stat modifiers (HP, damage, vision range)
 - Classes have recommended drills (UI hint, not a constraint)
 - Any class can train on any drill
-- Files: `Balance.js`, new `src/ui/ClassPicker.js`
+- Files: `Balance.js`, `src/ui/RosterPanel.js`
 
-**5.3 — Drill-Based Training (replaces "train on own base")**
+**5.3 — Drill-Based Training (replaces "train on own base")** ✅ DONE
 - Training happens in dedicated drills, NOT against the player's own base
 - Drill scenarios defined as factory functions (like current Scenario.js levels)
 - Each drill teaches a specific skill with randomized layouts
 - Player selects a soldier from roster + a drill, then watches training
 - Training costs gold per soldier per 1,000 episodes
-- Files: `Scenario.js` (add drill definitions), `Balance.js` (drill costs), modify `main.js` (drill selector flow)
+- Files: `Scenario.js`, `Balance.js`, `main.js`
 
-**5.4 — Group Training**
+**5.4 — Group Training** ✅ DONE
 - Group drills accept 2+ soldiers from the roster
 - Each soldier uses its OWN brain (not shared weights)
 - All soldiers' transitions go to their INDIVIDUAL PPO buffers
 - Soldiers see each other via ally observations
-- This is where emergent heterogeneous coordination develops
-- Files: `main.js` (multi-agent loop with separate PPO instances), `Rewards.js` (group drill rewards)
+- Per-soldier class stats applied (Armored gets 300HP/15DMG, Soldier gets 200HP/25DMG)
+- Emergent role differentiation from stat asymmetry (proven in testing)
+- Training rank system: Recruit → Trained → Veteran → Elite → Legendary
+- Files: `main.js`, `src/ui/RosterPanel.js`, `Rewards.js`
 
 **5.5 — Squad Composition for Raids**
 - Player picks soldiers from roster to form a raid squad

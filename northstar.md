@@ -70,11 +70,10 @@ Classes define starting stats and recommended training paths. They do NOT constr
 
 | Class | Starting Stats | Recommended Drills | Role |
 |-------|---------------|-------------------|------|
-| **Assault** | +HP, standard damage | Cannon destruction, shield breaking | Frontline DPS |
-| **Scout** | Standard HP, +vision range | Mine navigation, pathfinding | Safe pathing, recon |
-| **Support** | -HP, special ability (heal/buff) | Coordination drills, survival | Keep teammates alive |
+| **SOLDIER** | Standard HP (1.0x), high damage (1.25x) | Cannon destruction, shield breaking | DPS, flanking |
+| **ARMORED** | High HP (1.5x), low damage (0.75x) | Mine navigation, survival drills | Tank, frontline |
 
-For MVP, start with 2-3 classes. The system is designed to support more:
+Currently 2 classes are implemented. The system is designed to support more:
 - Classes are data in `Balance.js`, not hardcoded logic
 - Each class = stat modifiers + UI metadata (icon, description, recommended drills)
 - The brain architecture is identical across classes (same observation space, same action space)
@@ -319,16 +318,16 @@ Key principle: **the simulation is the source of truth.** Everything else (rende
 - [x] Base editor with click-to-place buildings
 
 ### MVP
-- [ ] Individual soldier brains (replace shared brain)
-- [ ] Soldier class system (2-3 classes)
-- [ ] Roster management UI (recruit, view, retire soldiers)
-- [ ] Drill-based training (solo drills, 4+ drill types)
+- [x] Individual soldier brains (replace shared brain)
+- [x] Soldier class system (2 classes: SOLDIER, ARMORED)
+- [x] Roster management UI (recruit, view, retire soldiers)
+- [x] Drill-based training (solo drills, 4+ drill types)
 - [ ] Squad composition UI (pick soldiers for a raid)
-- [ ] Basic metrics dashboard (win rate, episode count, reward chart)
+- [x] Basic metrics dashboard (win rate, episode count, reward chart)
 
 ### Alpha
 - [ ] All 5 building types
-- [ ] Group training drills (2+ soldiers)
+- [x] Group training drills (2+ soldiers with independent brains)
 - [ ] Async PvP (raid other players' bases, one-shot)
 - [ ] BPR matchmaking
 - [ ] Replay system
