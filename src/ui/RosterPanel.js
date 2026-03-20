@@ -12,8 +12,10 @@ export class RosterPanel {
 
     // Callbacks set by main.js
     this.onTrainSoldier = null;   // (soldierId, drillName) => void
+    this.onGroupTrain = null;     // (soldierIds[], drillName) => void
     this.onEditBase = null;       // () => void
 
+    this.selectedForGroup = new Set();
     this._build();
   }
 
@@ -83,6 +85,9 @@ export class RosterPanel {
       }
     }
 
+    // Group Training section
+    this._buildGroupSection();
+
     // Edit Base button at bottom
     const editBtn = document.createElement('button');
     editBtn.className = 'btn';
@@ -103,13 +108,35 @@ export class RosterPanel {
     const hp = classDef ? Math.round(BALANCE.SOLDIER.hp * classDef.hpMultiplier) : BALANCE.SOLDIER.hp;
     const dmg = classDef ? Math.round(BALANCE.SOLDIER.damage * classDef.damageMultiplier) : BALANCE.SOLDIER.damage;
 
-    // Header: name + class
+    // Header: checkbox + name + class
     const header = document.createElement('div');
     header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:4px';
-    header.innerHTML = `
-      <span style="font-weight:bold;color:${color}">${soldier.name}</span>
-      <span style="font-size:10px;color:${color};opacity:0.7">${soldier.soldierClass}</span>
-    `;
+
+    const leftSide = document.createElement('div');
+    leftSide.style.cssText = 'display:flex;align-items:center;gap:6px';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = this.selectedForGroup.has(soldier.id);
+    checkbox.title = 'Select for group drill';
+    checkbox.style.cssText = 'accent-color:#8bc34a;cursor:pointer';
+    checkbox.addEventListener('change', () => {
+      if (checkbox.checked) {
+        this.selectedForGroup.add(soldier.id);
+      } else {
+        this.selectedForGroup.delete(soldier.id);
+      }
+      this._updateGroupSection();
+    });
+    leftSide.appendChild(checkbox);
+    const nameSpan = document.createElement('span');
+    nameSpan.style.cssText = `font-weight:bold;color:${color}`;
+    nameSpan.textContent = soldier.name;
+    leftSide.appendChild(nameSpan);
+    header.appendChild(leftSide);
+    const classSpan = document.createElement('span');
+    classSpan.style.cssText = `font-size:10px;color:${color};opacity:0.7`;
+    classSpan.textContent = soldier.soldierClass;
+    header.appendChild(classSpan);
     card.appendChild(header);
 
     // Stats: class stats + training history
@@ -169,6 +196,102 @@ export class RosterPanel {
 
     card.appendChild(drillRow);
     return card;
+  }
+
+  _buildGroupSection() {
+    // Check if any group drills are available
+    const availGroupDrills = Object.entries(BALANCE.DRILLS)
+      .filter(([, d]) => d.type === 'group' && d.minLevel <= this.roster.playerLevel);
+
+    if (availGroupDrills.length === 0 || this.roster.soldiers.length < 2) return;
+
+    const section = document.createElement('div');
+    section.id = 'group-training-section';
+    section.style.cssText = 'margin-top:10px;padding:8px;background:#1a2a1a;border:1px solid #2a5a2a;border-radius:4px';
+
+    const header = document.createElement('div');
+    header.style.cssText = 'font-size:11px;color:#ff9800;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px';
+    header.textContent = 'Group Training';
+    section.appendChild(header);
+
+    const desc = document.createElement('div');
+    desc.style.cssText = 'font-size:10px;color:#8bc34a;margin-bottom:6px';
+    desc.textContent = 'Check soldiers above, then start a group drill.';
+    section.appendChild(desc);
+
+    // Drill dropdown
+    const drillRow = document.createElement('div');
+    drillRow.style.cssText = 'display:flex;gap:4px;align-items:center;margin-bottom:6px';
+
+    const select = document.createElement('select');
+    select.id = 'group-drill-select';
+    select.className = 'editor-select';
+    select.style.cssText = 'flex:1;font-size:10px;padding:4px';
+    for (const [drillName, drillDef] of availGroupDrills) {
+      const opt = document.createElement('option');
+      opt.value = drillName;
+      opt.textContent = drillName.replace(/_/g, ' ') + ` (${drillDef.minSoldiers}+)`;
+      select.appendChild(opt);
+    }
+    select.addEventListener('change', () => this._updateGroupSection());
+    drillRow.appendChild(select);
+    section.appendChild(drillRow);
+
+    // Status text
+    const statusEl = document.createElement('div');
+    statusEl.id = 'group-status';
+    statusEl.style.cssText = 'font-size:10px;color:#aaa;margin-bottom:6px';
+    section.appendChild(statusEl);
+
+    // Start button
+    const startBtn = document.createElement('button');
+    startBtn.id = 'group-start-btn';
+    startBtn.className = 'btn';
+    startBtn.style.cssText = 'width:100%;font-size:12px;padding:8px;background:#2a3a1a;color:#8bc34a;border-color:#4caf50';
+    startBtn.textContent = 'START GROUP DRILL';
+    startBtn.disabled = true;
+    startBtn.style.opacity = '0.5';
+    startBtn.addEventListener('click', () => {
+      const drill = select.value;
+      const ids = Array.from(this.selectedForGroup);
+      if (this.onGroupTrain) this.onGroupTrain(ids, drill);
+    });
+    section.appendChild(startBtn);
+
+    this.container.appendChild(section);
+    this._updateGroupSection();
+  }
+
+  _updateGroupSection() {
+    const statusEl = document.getElementById('group-status');
+    const startBtn = document.getElementById('group-start-btn');
+    const select = document.getElementById('group-drill-select');
+    if (!statusEl || !startBtn || !select) return;
+
+    const drillName = select.value;
+    const drillDef = BALANCE.DRILLS[drillName];
+    const needed = drillDef ? drillDef.minSoldiers : 2;
+    const selected = this.selectedForGroup.size;
+
+    // Build class composition text
+    const classComposition = [];
+    for (const id of this.selectedForGroup) {
+      const s = this.roster.getById(id);
+      if (s) classComposition.push(s.soldierClass);
+    }
+    const compText = classComposition.length > 0
+      ? classComposition.join(' + ')
+      : 'none';
+
+    if (selected >= needed) {
+      statusEl.innerHTML = `<span style="color:#4caf50">Ready!</span> ${selected} selected: <b>${compText}</b>`;
+      startBtn.disabled = false;
+      startBtn.style.opacity = '1';
+    } else {
+      statusEl.innerHTML = `<span style="color:#ff9800">Select ${needed - selected} more</span> | Selected: ${compText}`;
+      startBtn.disabled = true;
+      startBtn.style.opacity = '0.5';
+    }
   }
 
   _recruit(className) {

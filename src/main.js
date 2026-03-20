@@ -29,9 +29,13 @@ let mode = 'roster';
 let testLayout = null;
 
 // Drill training state (per-soldier brain)
-let trainingSoldierRecord = null; // SoldierRecord being trained
+let trainingSoldierRecord = null; // SoldierRecord being trained (solo drill)
 let trainingDrillName = null;     // which drill
 let drillLevelDef = null;         // the LEVELS entry used for the drill
+
+// Group drill training state
+let groupTrainingRecords = null;  // SoldierRecord[] being trained together
+let soldierBrainMap = null;       // Map<simSoldierId, SoldierRecord>
 
 // Training stats
 let episode = 0;
@@ -55,6 +59,9 @@ function getDrillLevel(drillName) {
     SHIELD_SIEGE: 1,    // Level 2: mines + cannons + shield
     THE_MAZE: 2,        // Level 3: walls + mines + cannons
     KILL_ZONE: 3,       // Level 4: mine walls + dense defenses
+    SQUAD_BASICS: 4,    // Level 5: 2 soldiers, mines + cannons
+    FLANKING_DRILL: 5,  // Level 6: 3 soldiers, walls + cannons
+    FULL_ASSAULT: 5,    // Level 6: 3 soldiers, walls + cannons
   };
   const idx = drillToLevel[drillName];
   if (idx !== undefined && idx < LEVELS.length) return LEVELS[idx];
@@ -101,6 +108,9 @@ function enterRosterMode() {
   rosterPanel.onTrainSoldier = (soldierId, drillName) => {
     enterDrillMode(soldierId, drillName);
   };
+  rosterPanel.onGroupTrain = (soldierIds, drillName) => {
+    enterGroupDrillMode(soldierIds, drillName);
+  };
   rosterPanel.onEditBase = () => {
     enterEditMode();
   };
@@ -143,7 +153,22 @@ function enterDrillMode(soldierId, drillName) {
   dashboard.onSpeedChange = (s) => { speed = s; };
   dashboard.onPauseToggle = (p) => { paused = p; };
   dashboard.onReset = () => { endEpisode(false); resetDrillEpisode(); };
-  dashboard.onGraduate = () => {}; // no graduation in drill mode
+  dashboard.onGraduate = () => {
+    // Graduate = level up the player, unlocking more drills & roster slots
+    const wr = winHistory.length > 0
+      ? winHistory.reduce((a, b) => a + b, 0) / winHistory.length : 0;
+    if (wr < 0.6) {
+      alert(`Need 60%+ win rate to level up. Current: ${(wr * 100).toFixed(0)}%`);
+      return;
+    }
+    if (roster.playerLevel >= BALANCE.PLAYER_LEVELS.MAX) {
+      alert('Already at max level!');
+      return;
+    }
+    roster.playerLevel++;
+    roster.save();
+    alert(`Leveled up to ${roster.playerLevel}! New drills and roster slots unlocked.`);
+  };
   dashboard.onRerollWeights = () => {
     // Reroll THIS soldier's brain
     trainingSoldierRecord.brain = new PPO();
@@ -301,6 +326,229 @@ function runDrillValidation() {
 }
 
 // =============================================================================
+// MODE: GROUP DRILL (training multiple soldiers together)
+// =============================================================================
+function enterGroupDrillMode(soldierIds, drillName) {
+  const records = soldierIds.map(id => roster.getById(id)).filter(Boolean);
+  if (records.length < 2) return;
+
+  groupTrainingRecords = records;
+  trainingDrillName = drillName;
+  drillLevelDef = getDrillLevel(drillName);
+  trainingSoldierRecord = null; // not a solo drill
+
+  mode = 'drill';
+  paused = false;
+  episode = 0;
+  totalSteps = 0;
+  winHistory = [];
+  stepsSinceUpdate = 0;
+  lastEntropy = 0;
+
+  // Show metrics and status
+  document.getElementById('metrics').style.display = '';
+  document.getElementById('status').style.display = '';
+
+  // Clear roster panel
+  if (rosterPanel) { rosterPanel.dispose(); rosterPanel = null; }
+
+  // Build drill training UI
+  const controlsEl = document.getElementById('controls');
+  dashboard = new Dashboard(controlsEl);
+
+  // Dashboard callbacks
+  dashboard.onSpeedChange = (s) => { speed = s; };
+  dashboard.onPauseToggle = (p) => { paused = p; };
+  dashboard.onReset = () => { endEpisode(false); resetGroupDrillEpisode(); };
+  dashboard.onGraduate = () => {
+    const wr = winHistory.length > 0
+      ? winHistory.reduce((a, b) => a + b, 0) / winHistory.length : 0;
+    if (wr < 0.6) {
+      alert(`Need 60%+ win rate to level up. Current: ${(wr * 100).toFixed(0)}%`);
+      return;
+    }
+    if (roster.playerLevel >= BALANCE.PLAYER_LEVELS.MAX) {
+      alert('Already at max level!');
+      return;
+    }
+    roster.playerLevel++;
+    roster.save();
+    alert(`Leveled up to ${roster.playerLevel}! New drills and roster slots unlocked.`);
+  };
+  dashboard.onRerollWeights = () => {
+    for (const rec of groupTrainingRecords) {
+      rec.brain = new PPO();
+    }
+    winHistory = [];
+    stepsSinceUpdate = 0;
+    metricsChart.rewardHistory = [];
+    metricsChart.entropyHistory = [];
+    resetGroupDrillEpisode();
+    console.log('Rerolled all group soldiers\' brains.');
+  };
+  dashboard.onResetTraining = () => {
+    for (const rec of groupTrainingRecords) {
+      rec.brain = new PPO();
+      rec.totalEpisodes = 0;
+      rec.drillHistory = {};
+    }
+    episode = 0;
+    totalSteps = 0;
+    winHistory = [];
+    stepsSinceUpdate = 0;
+    metricsChart.rewardHistory = [];
+    metricsChart.entropyHistory = [];
+    resetGroupDrillEpisode();
+  };
+  dashboard.onValidateTransfer = () => { runGroupDrillValidation(); };
+
+  metricsChart.rewardHistory = [];
+  metricsChart.entropyHistory = [];
+
+  // Add a "BACK TO ROSTER" button above controls
+  const backBtn = document.createElement('button');
+  backBtn.id = 'btn-mode-toggle';
+  backBtn.className = 'btn';
+  backBtn.style.cssText = 'width:100%;background:#3a2a1a;color:#ffab40;border-color:#ffab40;font-size:14px;padding:10px;margin-bottom:8px';
+  backBtn.textContent = 'BACK TO ROSTER';
+  backBtn.addEventListener('click', () => { exitGroupDrillMode(); });
+  const dashboardEl = document.getElementById('dashboard');
+  dashboardEl.insertBefore(backBtn, document.getElementById('controls'));
+
+  // Group info header — show all soldiers
+  const classColors = { SOLDIER: '#ffab40', ARMORED: '#40c4ff' };
+  const infoEl = document.createElement('div');
+  infoEl.id = 'drill-soldier-info';
+  infoEl.style.cssText = 'text-align:center;padding:4px 0;font-size:12px;border-bottom:1px solid #2a5a2a;margin-bottom:4px';
+
+  let infoHtml = `<div style="color:#8bc34a;font-size:10px;margin-bottom:4px">Group Drill: ${drillName.replace(/_/g, ' ')}</div>`;
+  for (const rec of records) {
+    const color = classColors[rec.soldierClass] || '#e0e0e0';
+    const cs = rec.classStats;
+    const hp = cs ? Math.round(BALANCE.SOLDIER.hp * cs.hpMultiplier) : BALANCE.SOLDIER.hp;
+    const dmg = cs ? Math.round(BALANCE.SOLDIER.damage * cs.damageMultiplier) : BALANCE.SOLDIER.damage;
+    infoHtml += `<span style="color:${color};font-weight:bold">${rec.name}</span>
+      <span style="color:#aaa;font-size:9px">(${rec.soldierClass})</span>
+      <span style="color:#8bc34a;font-size:9px">HP:${hp} DMG:${dmg}</span><br>`;
+  }
+  infoEl.innerHTML = infoHtml;
+  dashboardEl.insertBefore(infoEl, document.getElementById('controls'));
+
+  resetGroupDrillEpisode();
+}
+
+function resetGroupDrillEpisode(skipRenderer = false) {
+  const scenario = drillLevelDef.factory();
+  grid = scenario.grid;
+  soldiers = scenario.soldiers;
+  buildings = scenario.buildings;
+  hq = scenario.hq;
+
+  // Build 1:1 mapping: sim soldier → roster SoldierRecord
+  const teamSoldiers = soldiers.filter(s => s.team === 0);
+  soldierBrainMap = new Map();
+
+  for (let i = 0; i < teamSoldiers.length && i < groupTrainingRecords.length; i++) {
+    const simSoldier = teamSoldiers[i];
+    const record = groupTrainingRecords[i];
+    soldierBrainMap.set(simSoldier.id, record);
+
+    // Apply THIS soldier's class stats to its sim counterpart
+    const classStats = record.classStats;
+    if (classStats) {
+      simSoldier.hp = Math.round(BALANCE.SOLDIER.hp * classStats.hpMultiplier);
+      simSoldier.maxHp = simSoldier.hp;
+      simSoldier.damage = Math.round(BALANCE.SOLDIER.damage * classStats.damageMultiplier);
+    }
+  }
+
+  sim = new SimLoop(grid, soldiers, buildings, hq, drillLevelDef.maxSteps);
+  episodeReward = 0;
+  numTeamSoldiers = teamSoldiers.length;
+
+  if (!skipRenderer && renderer) {
+    renderer.clear();
+    renderer.initFromState(sim.getState());
+    interpolator.pushState(sim.getState());
+  }
+}
+
+function exitGroupDrillMode() {
+  if (groupTrainingRecords) {
+    for (const rec of groupTrainingRecords) {
+      rec.recordTraining(trainingDrillName, episode);
+    }
+    roster.save();
+  }
+
+  const infoEl = document.getElementById('drill-soldier-info');
+  if (infoEl) infoEl.remove();
+
+  groupTrainingRecords = null;
+  soldierBrainMap = null;
+  trainingDrillName = null;
+  drillLevelDef = null;
+
+  enterRosterMode();
+}
+
+function runGroupDrillValidation() {
+  if (!groupTrainingRecords) return;
+  const savedPaused = paused;
+  paused = true;
+
+  const VALIDATION_EPISODES = 100;
+  let wins = 0;
+
+  for (let ep = 0; ep < VALIDATION_EPISODES; ep++) {
+    const scenario = drillLevelDef.factory();
+    const vGrid = scenario.grid;
+    const vSoldiers = scenario.soldiers;
+    const vBuildings = scenario.buildings;
+    const vHq = scenario.hq;
+
+    // Apply class stats to validation soldiers
+    const teamSoldiers = vSoldiers.filter(s => s.team === 0);
+    const vMap = new Map();
+    for (let i = 0; i < teamSoldiers.length && i < groupTrainingRecords.length; i++) {
+      const s = teamSoldiers[i];
+      const rec = groupTrainingRecords[i];
+      vMap.set(s.id, rec);
+      const cs = rec.classStats;
+      if (cs) {
+        s.hp = Math.round(BALANCE.SOLDIER.hp * cs.hpMultiplier);
+        s.maxHp = s.hp;
+        s.damage = Math.round(BALANCE.SOLDIER.damage * cs.damageMultiplier);
+      }
+    }
+
+    const vSim = new SimLoop(vGrid, vSoldiers, vBuildings, vHq, drillLevelDef.maxSteps);
+
+    while (!vSim.done) {
+      const actions = [];
+      for (const s of vSoldiers) {
+        if (!s.alive || s.team !== 0) { actions.push(7); continue; }
+        const rec = vMap.get(s.id);
+        const brain = rec ? rec.brain : groupTrainingRecords[0].brain;
+        const obs = buildObservation(s, vGrid, vSoldiers, vBuildings, vHq, vSim.shieldActive);
+        const result = brain.selectAction(obs);
+        actions.push(result.action);
+      }
+      vSim.tick(actions);
+    }
+    if (vSim.won) wins++;
+  }
+
+  const transferRate = (wins / VALIDATION_EPISODES * 100).toFixed(1);
+  const status = wins / VALIDATION_EPISODES >= 0.7 ? 'PASS' : (wins / VALIDATION_EPISODES >= 0.5 ? 'PARTIAL' : 'FAIL');
+  const names = groupTrainingRecords.map(r => r.name).join(' + ');
+  console.log(`Group Validation (${names}): ${wins}/${VALIDATION_EPISODES} wins (${transferRate}%) — ${status}`);
+  alert(`Group Drill Validation: ${names}\nDrill: ${trainingDrillName}\n\n${wins}/${VALIDATION_EPISODES} wins (${transferRate}%)\n\nStatus: ${status}`);
+
+  paused = savedPaused;
+}
+
+// =============================================================================
 // MODE: EDIT (base editor — unchanged from before)
 // =============================================================================
 function enterEditMode() {
@@ -449,7 +697,140 @@ function gameLoop(timestamp) {
   }
 
   // ==========================================================================
-  // DRILL MODE — training a specific soldier's individual brain
+  // GROUP DRILL MODE — training multiple soldiers' brains together
+  // ==========================================================================
+  if (mode === 'drill' && groupTrainingRecords) { try {
+    const ticksThisFrame = document.hidden ? speed * 60 : speed;
+
+    for (let t = 0; t < ticksThisFrame; t++) {
+      if (sim.done) {
+        endEpisode(sim.won);
+
+        // PPO update for each soldier's brain independently
+        for (const record of groupTrainingRecords) {
+          const brain = record.brain;
+          if (brain.bufferSize() >= HORIZON) {
+            // Find this soldier's sim counterpart for bootstrap value
+            let lastObs = null;
+            for (const s of soldiers) {
+              if (s.team === 0 && s.alive && soldierBrainMap.get(s.id) === record) {
+                lastObs = buildObservation(s, grid, soldiers, buildings, hq, sim.shieldActive);
+                break;
+              }
+            }
+            brain.update(lastObs);
+          }
+        }
+
+        resetGroupDrillEpisode(true);
+        continue;
+      }
+
+      // Each soldier uses its OWN brain for action selection
+      const actions = [];
+      for (const s of soldiers) {
+        if (!s.alive || s.team !== 0) {
+          actions.push(7);
+          continue;
+        }
+
+        const record = soldierBrainMap.get(s.id);
+        if (!record) { actions.push(7); continue; }
+        const brain = record.brain;
+
+        const obs = buildObservation(s, grid, soldiers, buildings, hq, sim.shieldActive);
+        const prevState = { x: s.x, y: s.y };
+        const result = brain.selectAction(obs);
+        actions.push(result.action);
+        lastEntropy = result.entropy;
+
+        s._currentObs = obs;
+        s._logProb = result.logProb;
+        s._value = result.value;
+        s._prevState = prevState;
+        s._brain = brain;
+      }
+
+      sim.tick(actions);
+      totalSteps++;
+      stepsSinceUpdate++;
+
+      // Compute rewards — store in EACH soldier's own brain buffer
+      for (const s of soldiers) {
+        if (s.team !== 0 || !s._currentObs) continue;
+
+        const reward = computeReward(
+          s, s._prevState, grid, buildings, soldiers, hq,
+          sim.done, sim.won, sim.shieldActive
+        );
+        episodeReward += reward;
+
+        const brain = s._brain;
+        brain.store(
+          s._currentObs, s.lastAction, s._logProb, s._value,
+          reward, sim.done
+        );
+      }
+
+      // Mid-episode PPO update — check each brain independently
+      for (const record of groupTrainingRecords) {
+        const brain = record.brain;
+        if (brain.bufferSize() >= HORIZON && !sim.done) {
+          let lastObs = null;
+          for (const s of soldiers) {
+            if (s.team === 0 && s.alive && soldierBrainMap.get(s.id) === record) {
+              lastObs = buildObservation(s, grid, soldiers, buildings, hq, sim.shieldActive);
+              break;
+            }
+          }
+          brain.update(lastObs);
+          stepsSinceUpdate = 0;
+        }
+      }
+    }
+
+    // Visualization
+    const state = sim.getState();
+    if (!document.hidden) {
+      if (speed > 1) {
+        renderer.clear();
+        renderer.initFromState(state);
+      }
+      interpolator.pushState(state);
+      renderer.update(state, 1);
+      renderer.render();
+    }
+
+    // Dashboard stats — use first brain's metrics for display
+    const winRate = winHistory.length > 0
+      ? winHistory.reduce((a, b) => a + b, 0) / winHistory.length : 0;
+    const firstBrain = groupTrainingRecords[0].brain;
+
+    dashboard.updateStats({
+      level: roster.playerLevel,
+      maxLevel: BALANCE.PLAYER_LEVELS.MAX,
+      levelName: trainingDrillName.replace(/_/g, ' '),
+      episode,
+      step: sim.step,
+      totalSteps,
+      episodeReward: episodeReward / numTeamSoldiers,
+      soldiers: numTeamSoldiers,
+      winRate,
+      entropy: lastEntropy,
+      policyLoss: firstBrain.lastMetrics.policyLoss,
+      valueLoss: firstBrain.lastMetrics.valueLoss,
+    });
+
+    if (!document.hidden) statusBar.update(state);
+
+    // Auto-save every 100 episodes
+    if (episode > 0 && episode % 100 === 0) {
+      roster.save();
+    }
+  } catch(e) { console.error('Group drill loop error:', e); } }
+
+  // ==========================================================================
+  // SOLO DRILL MODE — training a specific soldier's individual brain
   // ==========================================================================
   if (mode === 'drill' && trainingSoldierRecord) { try {
     const brain = trainingSoldierRecord.brain;
@@ -550,8 +931,8 @@ function gameLoop(timestamp) {
       : 0;
 
     dashboard.updateStats({
-      level: 1,
-      maxLevel: 1,
+      level: roster.playerLevel,
+      maxLevel: BALANCE.PLAYER_LEVELS.MAX,
       levelName: trainingDrillName.replace(/_/g, ' '),
       episode,
       step: sim.step,

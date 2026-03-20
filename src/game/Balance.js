@@ -158,12 +158,12 @@ export const BALANCE = deepFreeze({
       teaches: 'Timing advances, using cover, burst movement',
     },
     SQUAD_BASICS: {
-      type: 'group', minLevel: 5, minSoldiers: 2, status: 'planned',
+      type: 'group', minLevel: 1, minSoldiers: 2, status: 'implemented',
       description: 'Two soldiers learn to cooperate without clustering.',
       teaches: 'Spacing, not blocking allies, basic coordination',
     },
     FLANKING_DRILL: {
-      type: 'group', minLevel: 6, minSoldiers: 2, status: 'planned',
+      type: 'group', minLevel: 2, minSoldiers: 2, status: 'implemented',
       description: 'Multiple soldiers attack from different angles.',
       teaches: 'Flanking, splitting attention of defenses',
     },
